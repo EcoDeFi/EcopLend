@@ -1,4 +1,6 @@
-pragma solidity 0.6.2;
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.6.2;
 pragma experimental ABIEncoderV2;
 
 contract Ecop {
@@ -21,7 +23,7 @@ contract Ecop {
     mapping (address => uint96) internal balances;
 
     /// @notice A record of each accounts delegate
-    mapping (address => address) external delegates;
+    mapping (address => address) public delegates;
 
     /// @notice A checkpoint for marking number of votes from a given block
     struct Checkpoint {
@@ -30,10 +32,10 @@ contract Ecop {
     }
 
     /// @notice A record of votes checkpoints for each account, by index
-    mapping (address => mapping (uint32 => Checkpoint)) external checkpoints;
+    mapping (address => mapping (uint32 => Checkpoint)) public checkpoints;
 
     /// @notice The number of checkpoints for each account
-    mapping (address => uint32) external numCheckpoints;
+    mapping (address => uint32) public numCheckpoints;
 
     /// @notice The EIP-712 typehash for the contract's domain
     bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
@@ -42,7 +44,7 @@ contract Ecop {
     bytes32 public constant DELEGATION_TYPEHASH = keccak256("Delegation(address delegatee,uint256 nonce,uint256 expiry)");
 
     /// @notice A record of states for signing / validating signatures
-    mapping (address => uint) external nonces;
+    mapping (address => uint) public nonces;
 
     /// @notice An event thats emitted when an account changes its delegate
     event DelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate);
@@ -60,7 +62,7 @@ contract Ecop {
      * @notice Construct a new Ecop token
      * @param account The initial account to grant all the tokens
      */
-    constructor(address account) public {
+    constructor(address account) {
         balances[account] = uint96(totalSupply);
         emit Transfer(address(0), account, totalSupply);
     }
@@ -85,8 +87,8 @@ contract Ecop {
      */
     function approve(address spender, uint rawAmount) external returns (bool) {
         uint96 amount;
-        if (rawAmount == uint(-1)) {
-            amount = uint96(-1);
+        if (rawAmount == uint(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)) {
+            amount = uint96(0xffffffffffffffffffffffff);
         } else {
             amount = safe96(rawAmount, "Ecop::approve: amount exceeds 96 bits");
         }
@@ -130,7 +132,7 @@ contract Ecop {
         uint96 spenderAllowance = allowances[src][spender];
         uint96 amount = safe96(rawAmount, "Ecop::transferFrom: amount exceeds 96 bits");
 
-        if (spender != src && spenderAllowance != uint96(-1)) {
+        if (spender != src && spenderAllowance != uint96(0xffffffffffffffffffffffff)) {
             uint96 newAllowance = sub96(spenderAllowance, amount, "Ecop::transferFrom: transfer amount exceeds spender allowance");
             allowances[src][spender] = newAllowance;
 
@@ -165,7 +167,7 @@ contract Ecop {
         address signatory = ecrecover(digest, v, r, s);
         require(signatory != address(0), "Ecop::delegateBySig: invalid signature");
         require(nonce == nonces[signatory]++, "Ecop::delegateBySig: invalid nonce");
-        require(now <= expiry, "Ecop::delegateBySig: signature expired");
+        require(block.timestamp <= expiry, "Ecop::delegateBySig: signature expired");
         return _delegate(signatory, delegatee);
     }
 
@@ -293,7 +295,7 @@ contract Ecop {
         return a - b;
     }
 
-    function getChainId() internal pure returns (uint) {
+    function getChainId() internal view returns (uint) {
         uint256 chainId;
         assembly { chainId := chainid() }
         return chainId;
