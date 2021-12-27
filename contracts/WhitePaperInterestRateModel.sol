@@ -1,4 +1,6 @@
-pragma solidity 0.6.2;
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.6.2;
 
 import "./InterestRateModel.sol";
 import "./SafeMath.sol";
@@ -8,7 +10,7 @@ import "./SafeMath.sol";
   * @author ECOP
   * @notice The parameterized model described in section 2.4 of the original ECOP Protocol whitepaper
   */
-contract WhitePaperInterestRateModel is InterestRateModel {
+abstract contract WhitePaperInterestRateModel is InterestRateModel {
     using SafeMath for uint;
 
     event NewInterestParams(uint baseRatePerBlock, uint multiplierPerBlock);
@@ -33,7 +35,7 @@ contract WhitePaperInterestRateModel is InterestRateModel {
      * @param baseRatePerYear The approximate target base APR, as a mantissa (scaled by 1e18)
      * @param multiplierPerYear The rate of increase in interest rate wrt utilization (scaled by 1e18)
      */
-    constructor(uint baseRatePerYear, uint multiplierPerYear) public {
+    constructor(uint baseRatePerYear, uint multiplierPerYear) {
         baseRatePerBlock = baseRatePerYear.div(blocksPerYear);
         multiplierPerBlock = multiplierPerYear.div(blocksPerYear);
 
@@ -47,7 +49,7 @@ contract WhitePaperInterestRateModel is InterestRateModel {
      * @param reserves The amount of reserves in the market (currently unused)
      * @return The utilization rate as a mantissa between [0, 1e18]
      */
-    function utilizationRate(uint cash, uint borrows, uint reserves) external pure returns (uint) {
+    function utilizationRate(uint cash, uint borrows, uint reserves) internal pure returns (uint) {
         // Utilization rate is 0 when there are no borrows
         if (borrows == 0) {
             return 0;
@@ -63,7 +65,7 @@ contract WhitePaperInterestRateModel is InterestRateModel {
      * @param reserves The amount of reserves in the market
      * @return The borrow rate percentage per block as a mantissa (scaled by 1e18)
      */
-    function getBorrowRate(uint cash, uint borrows, uint reserves) external view returns (uint) {
+    function getBorrowRatio(uint cash, uint borrows, uint reserves) internal view returns (uint) {
         uint ur = utilizationRate(cash, borrows, reserves);
         return ur.mul(multiplierPerBlock).div(1e18).add(baseRatePerBlock);
     }
@@ -76,9 +78,9 @@ contract WhitePaperInterestRateModel is InterestRateModel {
      * @param reserveFactorMantissa The current reserve factor for the market
      * @return The supply rate percentage per block as a mantissa (scaled by 1e18)
      */
-    functio getSupplyRate(uint cash, uint borrows, uint reserves, uint reserveFactorMantissa) external view returns (uint) {
+    function getSupplyRate(uint cash, uint borrows, uint reserves, uint reserveFactorMantissa) external view override returns (uint) {
         uint oneMinusReserveFactor = uint(1e18).sub(reserveFactorMantissa);
-        uint borrowRate = getBorrowRate(cash, borrows, reserves);
+        uint borrowRate = getBorrowRatio(cash, borrows, reserves);
         uint rateToPool = borrowRate.mul(oneMinusReserveFactor).div(1e18);
         return utilizationRate(cash, borrows, reserves).mul(rateToPool).div(1e18);
     }

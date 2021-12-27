@@ -1,4 +1,6 @@
-pragma solidity 0.6.2;
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.6.2;
 
 import "./EToken.sol";
 import "./ErrorReporter.sol";
@@ -12,6 +14,7 @@ import "./Governance/Ecop.sol";
  * @title ECOP's Ecoptroller Contract
  * @author ECOP
  */
+
 contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerErrorReporter, ExponentialNoError {
     /// @notice Emitted when an admin supports a market
     event MarketListed(EToken eToken);
@@ -76,7 +79,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
     // No collateralFactorMantissa may exceed this value
     uint internal constant collateralFactorMaxMantissa = 0.9e18; // 0.9
 
-    constructor() public {
+    constructor() {
         admin = msg.sender;
     }
 
@@ -108,7 +111,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param eTokens The list of addresses of the eToken markets to be enabled
      * @return Success indicator for whether each corresponding market was entered
      */
-    function enterMarkets(address[] memory eTokens) external returns (uint[] memory) {
+    function enterMarkets(address[] memory eTokens) external override returns (uint[] memory) {
         uint len = eTokens.length;
 
         uint[] memory results = new uint[](len);
@@ -160,7 +163,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param eTokenAddress The address of the asset to be removed
      * @return Whether or not the account successfully exited the market
      */
-    function exitMarket(address eTokenAddress) external returns (uint) {
+    function exitMarket(address eTokenAddress) external override returns (uint) {
         EToken eToken = EToken(eTokenAddress);
         /* Get sender tokensHeld and amountOwed underlying from the eToken */
         (uint oErr, uint tokensHeld, uint amountOwed, ) = eToken.getAccountSnapshot(msg.sender);
@@ -205,7 +208,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         // copy last item in list to location of item to be removed, reduce length by 1
         EToken[] storage storedList = accountAssets[msg.sender];
         storedList[assetIndex] = storedList[storedList.length - 1];
-        storedList.length--;
+        delete(storedList[storedList.length - 1]);
 
         emit MarketExited(eToken, msg.sender);
 
@@ -221,7 +224,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param mintAmount The amount of underlying being supplied to the market in exchange for tokens
      * @return 0 if the mint is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
      */
-    function mintAllowed(address eToken, address minter, uint mintAmount) external returns (uint) {
+    function mintAllowed(address eToken, address minter, uint mintAmount) external override returns (uint) {
         // Pausing is a very serious situation - we revert to sound the alarms
         require(!mintGuardianPaused[eToken], "mint is paused");
 
@@ -247,7 +250,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param actualMintAmount The amount of the underlying asset being minted
      * @param mintTokens The number of tokens being minted
      */
-    function mintVerify(address eToken, address minter, uint actualMintAmount, uint mintTokens) external {
+    function mintVerify(address eToken, address minter, uint actualMintAmount, uint mintTokens) external override {
         // Shh - currently unused
         eToken;
         minter;
@@ -267,7 +270,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param redeemTokens The number of eTokens to exchange for the underlying asset in the market
      * @return 0 if the redeem is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
      */
-    function redeemAllowed(address eToken, address redeemer, uint redeemTokens) external returns (uint) {
+    function redeemAllowed(address eToken, address redeemer, uint redeemTokens) external override returns (uint) {
         uint allowed = redeemAllowedInternal(eToken, redeemer, redeemTokens);
         if (allowed != uint(Error.NO_ERROR)) {
             return allowed;
@@ -280,7 +283,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         return uint(Error.NO_ERROR);
     }
 
-    function redeemAllowedInternal(address eToken, address redeemer, uint redeemTokens) internal view returns (uint) {
+    function redeemAllowedInternal(address eToken, address redeemer, uint redeemTokens) internal returns (uint) {
         if (!markets[eToken].isListed) {
             return uint(Error.MARKET_NOT_LISTED);
         }
@@ -309,7 +312,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param redeemAmount The amount of the underlying asset being redeemed
      * @param redeemTokens The number of tokens being redeemed
      */
-    function redeemVerify(address eToken, address redeemer, uint redeemAmount, uint redeemTokens) external {
+    function redeemVerify(address eToken, address redeemer, uint redeemAmount, uint redeemTokens) external pure override {
         // Shh - currently unused
         eToken;
         redeemer;
@@ -327,7 +330,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param borrowAmount The amount of underlying the account would borrow
      * @return 0 if the borrow is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
      */
-    function borrowAllowed(address eToken, address borrower, uint borrowAmount) external returns (uint) {
+    function borrowAllowed(address eToken, address borrower, uint borrowAmount) external override returns (uint) {
         // Pausing is a very serious situation - we revert to sound the alarms
         require(!borrowGuardianPaused[eToken], "borrow is paused");
 
@@ -362,9 +365,9 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
             require(nextTotalBorrows < borrowCap, "market borrow cap reached");
         }
 
-        (Error err, , uint shortfall) = getHypotheticalAccountLiquidityInternal(borrower, EToken(eToken), 0, borrowAmount);
-        if (err != Error.NO_ERROR) {
-            return uint(err);
+        (Error erro, , uint shortfall) = getHypotheticalAccountLiquidityInternal(borrower, EToken(eToken), 0, borrowAmount);
+        if (erro != Error.NO_ERROR) {
+            return uint(erro);
         }
         if (shortfall > 0) {
             return uint(Error.INSUFFICIENT_LIQUIDITY);
@@ -384,7 +387,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param borrower The address borrowing the underlying
      * @param borrowAmount The amount of the underlying asset requested to borrow
      */
-    function borrowVerify(address eToken, address borrower, uint borrowAmount) external {
+    function borrowVerify(address eToken, address borrower, uint borrowAmount) external override {
         // Shh - currently unused
         eToken;
         borrower;
@@ -408,7 +411,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         address eToken,
         address payer,
         address borrower,
-        uint repayAmount) external returns (uint) {
+        uint repayAmount) external override returns (uint) {
         // Shh - currently unused
         payer;
         borrower;
@@ -438,7 +441,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         address payer,
         address borrower,
         uint actualRepayAmount,
-        uint borrowerIndex) external {
+        uint borrowerIndex) external override{
         // Shh - currently unused
         eToken;
         payer;
@@ -465,7 +468,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         address eTokenCollateral,
         address liquidator,
         address borrower,
-        uint repayAmount) external returns (uint) {
+        uint repayAmount) external override returns (uint) {
         // Shh - currently unused
         liquidator;
 
@@ -512,7 +515,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         address liquidator,
         address borrower,
         uint actualRepayAmount,
-        uint seizeTokens) external {
+        uint seizeTokens) external override {
         // Shh - currently unused
         eTokenBorrowed;
         eTokenCollateral;
@@ -540,7 +543,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         address eTokenBorrowed,
         address liquidator,
         address borrower,
-        uint seizeTokens) external returns (uint) {
+        uint seizeTokens) external override returns (uint) {
         // Pausing is a very serious situation - we revert to sound the alarms
         require(!seizeGuardianPaused, "seize is paused");
 
@@ -576,7 +579,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         address eTokenBorrowed,
         address liquidator,
         address borrower,
-        uint seizeTokens) external {
+        uint seizeTokens) external override{
         // Shh - currently unused
         eTokenCollateral;
         eTokenBorrowed;
@@ -598,7 +601,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param transferTokens The number of eTokens to transfer
      * @return 0 if the transfer is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
      */
-    function transferAllowed(address eToken, address src, address dst, uint transferTokens) external returns (uint) {
+    function transferAllowed(address eToken, address src, address dst, uint transferTokens) external override returns (uint) {
         // Pausing is a very serious situation - we revert to sound the alarms
         require(!transferGuardianPaused, "transfer is paused");
 
@@ -624,7 +627,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param dst The account which receives the tokens
      * @param transferTokens The number of eTokens to transfer
      */
-    function transferVerify(address eToken, address src, address dst, uint transferTokens) external {
+    function transferVerify(address eToken, address src, address dst, uint transferTokens) external override{
         // Shh - currently unused
         eToken;
         src;
@@ -663,8 +666,8 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
                 account liquidity in excess of collateral requirements,
      *          account shortfall below collateral requirements)
      */
-    function getAccountLiquidity(address account) external view returns (uint, uint, uint) {
-        (Error err, uint liquidity, uint shortfall) = getHypotheticalAccountLiquidityInternal(account, EToken(0), 0, 0);
+    function getAccountLiquidity(address account) external returns (uint, uint, uint) {
+        (Error err, uint liquidity, uint shortfall) = getHypotheticalAccountLiquidityInternal(account, EToken(address(0)), 0, 0);
 
         return (uint(err), liquidity, shortfall);
     }
@@ -675,8 +678,8 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
                 account liquidity in excess of collateral requirements,
      *          account shortfall below collateral requirements)
      */
-    function getAccountLiquidityInternal(address account) internal view returns (Error, uint, uint) {
-        return getHypotheticalAccountLiquidityInternal(account, EToken(0), 0, 0);
+    function getAccountLiquidityInternal(address account) internal returns (Error, uint, uint) {
+        return getHypotheticalAccountLiquidityInternal(account, EToken(address(0)), 0, 0);
     }
 
     /**
@@ -693,7 +696,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         address account,
         address eTokenModify,
         uint redeemTokens,
-        uint borrowAmount) external view returns (uint, uint, uint) {
+        uint borrowAmount) external returns (uint, uint, uint) {
         (Error err, uint liquidity, uint shortfall) = getHypotheticalAccountLiquidityInternal(account, EToken(eTokenModify), redeemTokens, borrowAmount);
         return (uint(err), liquidity, shortfall);
     }
@@ -714,7 +717,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         address account,
         EToken eTokenModify,
         uint redeemTokens,
-        uint borrowAmount) internal view returns (Error, uint, uint) {
+        uint borrowAmount) internal returns (Error, uint, uint) {
 
         AccountLiquidityLocalVars memory vars; // Holds all our calculation results
         uint oErr;
@@ -776,7 +779,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param actualRepayAmount The amount of eTokenBorrowed underlying to convert into eTokenCollateral tokens
      * @return (errorCode, number of eTokenCollateral tokens to be seized in a liquidation)
      */
-    function liquidateCalculateSeizeTokens(address eTokenBorrowed, address eTokenCollateral, uint actualRepayAmount) external view returns (uint, uint) {
+    function liquidateCalculateSeizeTokens(address eTokenBorrowed, address eTokenCollateral, uint actualRepayAmount) external override returns (uint, uint) {
         /* Read oracle prices for borrowed and collateral markets */
         uint priceBorrowedMantissa = oracle.getUnderlyingPrice(EToken(eTokenBorrowed));
         uint priceCollateralMantissa = oracle.getUnderlyingPrice(EToken(eTokenCollateral));
@@ -931,7 +934,11 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         eToken.isEToken(); // Sanity check to make sure its really a EToken
 
         // Note that isEcoped is not in active use anymore
-        markets[address(eToken)] = Market({isListed: true, isEcoped: false, collateralFactorMantissa: 0});
+       // markets[address(eToken)] = Market({isListed: true, isEcoped: false, collateralFactorMantissa: 0});
+        Market storage market = markets[address(eToken)];
+        market.isListed = true;
+        market.isEcoped = false;
+        market.collateralFactorMantissa = 0;
 
         _addMarketInternal(address(eToken));
 
@@ -1192,7 +1199,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @notice Calculate additional accrued ECOP for a contributor since last accrual
      * @param contributor The address to calculate contributor rewards for
      */
-    function updateContributorRewards(address contributor) external {
+    function updateContributorRewards(address contributor) internal {
         uint ecopSpeed = ecopContributorSpeeds[contributor];
         uint blockNumber = getBlockNumber();
         uint deltaBlocks = sub_(blockNumber, lastContributorBlock[contributor]);
@@ -1209,7 +1216,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @notice Claim all the ecop accrued by holder in all markets
      * @param holder The address to claim ECOP for
      */
-    function claimEcop(address holder) external {
+    function claimEcop(address holder) internal {
         return claimEcop(holder, allMarkets);
     }
 
@@ -1218,7 +1225,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param holder The address to claim ECOP for
      * @param eTokens The list of markets to claim ECOP in
      */
-    function claimEcop(address holder, EToken[] memory eTokens) external {
+    function claimEcop(address holder, EToken[] memory eTokens) internal {
         address[] memory holders = new address[](1);
         holders[0] = holder;
         claimEcop(holders, eTokens, true, true);
@@ -1231,7 +1238,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @param borrowers Whether or not to claim ECOP earned by borrowing
      * @param suppliers Whether or not to claim ECOP earned by supplying
      */
-    function claimEcop(address[] memory holders, EToken[] memory eTokens, bool borrowers, bool suppliers) external {
+    function claimEcop(address[] memory holders, EToken[] memory eTokens, bool borrowers, bool suppliers) internal {
         for (uint i = 0; i < eTokens.length; i++) {
             EToken eToken = eTokens[i];
             require(markets[address(eToken)].isListed, "market must be listed");
@@ -1331,7 +1338,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @dev All borrows in a deprecated eToken market can be immediately liquidated
      * @param eToken The market to check if deprecated
      */
-    function isDeprecated(EToken eToken) external view returns (bool) {
+    function isDeprecated(EToken eToken) internal view returns (bool) {
         return
             markets[address(eToken)].collateralFactorMantissa == 0 && 
             borrowGuardianPaused[address(eToken)] == true && 
@@ -1339,7 +1346,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
         ;
     }
 
-    function getBlockNumber() external view returns (uint) {
+    function getBlockNumber() internal view returns (uint) {
         return block.number;
     }
 
@@ -1347,7 +1354,7 @@ contract Ecoptroller is EcoptrollerV5Storage, EcoptrollerInterface, EcoptrollerE
      * @notice Return the address of the ECOP token
      * @return The address of ECOP
      */
-    function getEcopAddress() external view returns (address) {
-        return 0x96a16178edaff58736567cfcaff570c06617f0fd;
+    function getEcopAddress() internal pure returns (address) {
+        return 0x96a16178edAFF58736567Cfcaff570C06617F0Fd;
     }
 }

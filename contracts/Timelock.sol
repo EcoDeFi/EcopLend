@@ -1,4 +1,6 @@
-pragma solidity 0.6.2;
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.6.2;
 
 import "./SafeMath.sol";
 
@@ -23,7 +25,7 @@ contract Timelock {
     mapping (bytes32 => bool) public queuedTransactions;
 
 
-    constructor(address admin_, uint delay_) public {
+    constructor(address admin_, uint delay_) {
         require(delay_ >= MINIMUM_DELAY, "Timelock::constructor: Delay must exceed minimum delay.");
         require(delay_ <= MAXIMUM_DELAY, "Timelock::setDelay: Delay must not exceed maximum delay.");
 
@@ -31,7 +33,12 @@ contract Timelock {
         delay = delay_;
     }
 
-    function() external payable { }
+    // function() external payable { }
+    fallback() external {
+    }
+    receive() payable external {
+       
+    }
 
     function setDelay(uint delay_) external {
         require(msg.sender == address(this), "Timelock::setDelay: Call must come from Timelock.");
@@ -96,7 +103,7 @@ contract Timelock {
         }
 
         // solium-disable-next-line security/no-call-value
-        (bool success, bytes memory returnData) = target.call.value(value)(callData);
+        (bool success, bytes memory returnData) = target.call{value:value}(callData);
         require(success, "Timelock::executeTransaction: Transaction execution reverted.");
 
         emit ExecuteTransaction(txHash, target, value, signature, data, eta);

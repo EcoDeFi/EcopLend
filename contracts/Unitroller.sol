@@ -1,4 +1,6 @@
-pragma solidity 0.6.2;
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.6.2;
 
 import "./ErrorReporter.sol";
 import "./EcoptrollerStorage.sol";
@@ -29,7 +31,7 @@ contract Unitroller is UnitrollerAdminStorage, EcoptrollerErrorReporter {
       */
     event NewAdmin(address oldAdmin, address newAdmin);
 
-    constructor() public {
+    constructor() {
         // Set admin to caller
         admin = msg.sender;
     }
@@ -132,6 +134,26 @@ contract Unitroller is UnitrollerAdminStorage, EcoptrollerErrorReporter {
      * It returns to the external caller whatever the implementation returns
      * or forwards reverts.
      */
+    fallback() external {
+    }
+    receive() payable external {
+       // delegate all other functions to current implementation
+        bool success = _mySubfuc();
+
+        assembly {
+              let free_mem_ptr := mload(0x40)
+              returndatacopy(free_mem_ptr, 0, returndatasize())
+
+              switch success
+              case 0 { revert(free_mem_ptr, returndatasize()) }
+              default { return(free_mem_ptr, returndatasize()) }
+        }
+    }
+    function _mySubfuc() private returns(bool) {
+          (bool success, ) = ecoptrollerImplementation.delegatecall(msg.data);
+          return success;
+    }
+    /**
     function () payable external {
         // delegate all other functions to current implementation
         (bool success, ) = ecoptrollerImplementation.delegatecall(msg.data);
@@ -145,4 +167,5 @@ contract Unitroller is UnitrollerAdminStorage, EcoptrollerErrorReporter {
               default { return(free_mem_ptr, returndatasize) }
         }
     }
+    */
 }
