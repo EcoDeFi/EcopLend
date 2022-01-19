@@ -1,12 +1,10 @@
-// SPDX-License-Identifier: MIT
-
-pragma solidity >=0.6.2;
+pragma solidity ^0.5.16;
 
 /**
-  * @title ECOP's InterestRateModel Interface
-  * @author ECOP
+  * @title ESG's InterestRateModel Interface
+  * @author ESG
   */
-abstract contract InterestRateModel {
+contract InterestRateModel {
     /// @notice Indicator that this is an InterestRateModel contract (for inspection)
     bool public constant isInterestRateModel = true;
 
@@ -17,7 +15,7 @@ abstract contract InterestRateModel {
       * @param reserves The total amount of reserves the market has
       * @return The borrow rate per block (as a percentage, and scaled by 1e18)
       */
-    function getBorrowRate(uint cash, uint borrows, uint reserves) public virtual returns (uint);
+    function getBorrowRate(uint cash, uint borrows, uint reserves) external view returns (uint);
 
     /**
       * @notice Calculates the current supply interest rate per block
@@ -27,6 +25,6 @@ abstract contract InterestRateModel {
       * @param reserveFactorMantissa The current reserve factor the market has
       * @return The supply rate per block (as a percentage, and scaled by 1e18)
       */
-    function getSupplyRate(uint cash, uint borrows, uint reserves, uint reserveFactorMantissa) external virtual returns (uint);
+    function getSupplyRate(uint cash, uint borrows, uint reserves, uint reserveFactorMantissa) external view returns (uint);
 
 }

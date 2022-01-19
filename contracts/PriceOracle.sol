@@ -1,10 +1,8 @@
-// SPDX-License-Identifier: MIT
-
-pragma solidity >=0.6.2;
+pragma solidity ^0.5.16;
 
 import "./EToken.sol";
 
-abstract contract PriceOracle {
+contract PriceOracle {
     /// @notice Indicator that this is a PriceOracle contract (for inspection)
     bool public constant isPriceOracle = true;
 
@@ -14,5 +12,5 @@ abstract contract PriceOracle {
       * @return The underlying asset price mantissa (scaled by 1e18).
       *  Zero means the price is unavailable.
       */
-    function getUnderlyingPrice(EToken eToken) external  virtual returns (uint);
+    function getUnderlyingPrice(EToken eToken) external view returns (uint);
 }

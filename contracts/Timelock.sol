@@ -1,6 +1,4 @@
-// SPDX-License-Identifier: MIT
-
-pragma solidity >=0.6.2;
+pragma solidity ^0.5.16;
 
 import "./SafeMath.sol";
 
@@ -14,9 +12,9 @@ contract Timelock {
     event ExecuteTransaction(bytes32 indexed txHash, address indexed target, uint value, string signature,  bytes data, uint eta);
     event QueueTransaction(bytes32 indexed txHash, address indexed target, uint value, string signature, bytes data, uint eta);
 
-    uint public constant GRACE_PERIOD = 14 days;
-    uint public constant MINIMUM_DELAY = 2 days;
-    uint public constant MAXIMUM_DELAY = 30 days;
+    uint public constant GRACE_PERIOD = 86400*14;
+    uint public constant MINIMUM_DELAY = 86400*2;
+    uint public constant MAXIMUM_DELAY = 86400*30;
 
     address public admin;
     address public pendingAdmin;
@@ -25,7 +23,7 @@ contract Timelock {
     mapping (bytes32 => bool) public queuedTransactions;
 
 
-    constructor(address admin_, uint delay_) {
+    constructor(address admin_, uint delay_) public {
         require(delay_ >= MINIMUM_DELAY, "Timelock::constructor: Delay must exceed minimum delay.");
         require(delay_ <= MAXIMUM_DELAY, "Timelock::setDelay: Delay must not exceed maximum delay.");
 
@@ -33,14 +31,9 @@ contract Timelock {
         delay = delay_;
     }
 
-    // function() external payable { }
-    fallback() external {
-    }
-    receive() payable external {
-       
-    }
+    function() external payable { }
 
-    function setDelay(uint delay_) external {
+    function setDelay(uint delay_) public {
         require(msg.sender == address(this), "Timelock::setDelay: Call must come from Timelock.");
         require(delay_ >= MINIMUM_DELAY, "Timelock::setDelay: Delay must exceed minimum delay.");
         require(delay_ <= MAXIMUM_DELAY, "Timelock::setDelay: Delay must not exceed maximum delay.");
@@ -49,7 +42,7 @@ contract Timelock {
         emit NewDelay(delay);
     }
 
-    function acceptAdmin() external {
+    function acceptAdmin() public {
         require(msg.sender == pendingAdmin, "Timelock::acceptAdmin: Call must come from pendingAdmin.");
         admin = msg.sender;
         pendingAdmin = address(0);
@@ -57,14 +50,14 @@ contract Timelock {
         emit NewAdmin(admin);
     }
 
-    function setPendingAdmin(address pendingAdmin_) external {
-        require(msg.sender == address(this), "Timelock::setPendingAdmin: Call must come from Timelock.");
+    function setPendingAdmin(address pendingAdmin_) public {
+        require(msg.sender == admin, "Timelock::setPendingAdmin: Call must come from admin.");
         pendingAdmin = pendingAdmin_;
 
         emit NewPendingAdmin(pendingAdmin);
     }
 
-    function queueTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) external returns (bytes32) {
+    function queueTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) public returns (bytes32) {
         require(msg.sender == admin, "Timelock::queueTransaction: Call must come from admin.");
         require(eta >= getBlockTimestamp().add(delay), "Timelock::queueTransaction: Estimated execution block must satisfy delay.");
 
@@ -75,7 +68,7 @@ contract Timelock {
         return txHash;
     }
 
-    function cancelTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) external {
+    function cancelTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) public {
         require(msg.sender == admin, "Timelock::cancelTransaction: Call must come from admin.");
 
         bytes32 txHash = keccak256(abi.encode(target, value, signature, data, eta));
@@ -84,7 +77,7 @@ contract Timelock {
         emit CancelTransaction(txHash, target, value, signature, data, eta);
     }
 
-    function executeTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) external payable returns (bytes memory) {
+    function executeTransaction(address target, uint value, string memory signature, bytes memory data, uint eta) public payable returns (bytes memory) {
         require(msg.sender == admin, "Timelock::executeTransaction: Call must come from admin.");
 
         bytes32 txHash = keccak256(abi.encode(target, value, signature, data, eta));
@@ -103,7 +96,7 @@ contract Timelock {
         }
 
         // solium-disable-next-line security/no-call-value
-        (bool success, bytes memory returnData) = target.call{value:value}(callData);
+        (bool success, bytes memory returnData) = target.call.value(value)(callData);
         require(success, "Timelock::executeTransaction: Transaction execution reverted.");
 
         emit ExecuteTransaction(txHash, target, value, signature, data, eta);

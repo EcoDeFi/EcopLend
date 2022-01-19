@@ -1,82 +1,39 @@
-// SPDX-License-Identifier: MIT
+pragma solidity >=0.5.16;
 
-pragma solidity >=0.6.2;
-
-import "./ErrorReporter.sol";
-import "./EcoptrollerStorage.sol";
+import "./EsgtrollerStorage.sol";
 /**
- * @title EcoptrollerCore
- * @dev Storage for the ecoptroller is at this address, while execution is delegated to the `ecoptrollerImplementation`.
- * ETokens should reference this contract as their ecoptroller.
+ * @title EsgtrollerCore
+ * @dev Storage for the esgtroller is at this address, while execution is delegated to the `esgtrollerImplementation`.
+ * ETokens should reference this contract as their esgtroller.
  */
-contract Unitroller is UnitrollerAdminStorage, EcoptrollerErrorReporter {
+contract Unitroller is UnitrollerAdminStorage, UnitrollerEvents {
 
-    /**
-      * @notice Emitted when pendingEcoptrollerImplementation is changed
-      */
-    event NewPendingImplementation(address oldPendingImplementation, address newPendingImplementation);
-
-    /**
-      * @notice Emitted when pendingEcoptrollerImplementation is accepted, which means ecoptroller implementation is updated
-      */
-    event NewImplementation(address oldImplementation, address newImplementation);
-
-    /**
-      * @notice Emitted when pendingAdmin is changed
-      */
-    event NewPendingAdmin(address oldPendingAdmin, address newPendingAdmin);
-
-    /**
-      * @notice Emitted when pendingAdmin is accepted, which means admin is updated
-      */
-    event NewAdmin(address oldAdmin, address newAdmin);
-
-    constructor() {
+    constructor(address esg_, address admin_, address implementation_, bytes memory becomeImplementationData) public {
         // Set admin to caller
         admin = msg.sender;
+        delegateTo(implementation_, abi.encodeWithSignature("initialize(address)",esg_));
+
+        _setImplementation(implementation_, becomeImplementationData);
+
+        admin = admin_;
+        
     }
-
-    /*** Admin Functions ***/
-    function _setPendingImplementation(address newPendingImplementation) external returns (uint) {
-
-        if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.SET_PENDING_IMPLEMENTATION_OWNER_CHECK);
-        }
-
-        address oldPendingImplementation = pendingEcoptrollerImplementation;
-
-        pendingEcoptrollerImplementation = newPendingImplementation;
-
-        emit NewPendingImplementation(oldPendingImplementation, pendingEcoptrollerImplementation);
-
-        return uint(Error.NO_ERROR);
-    }
-
+    /*** Admin Functions */
     /**
-    * @notice Accepts new implementation of ecoptroller. msg.sender must be pendingImplementation
-    * @dev Admin function for new implementation to accept it's role as implementation
-    * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-    */
-    function _acceptImplementation() external returns (uint) {
-        // Check caller is pendingImplementation and pendingImplementation ≠ address(0)
-        if (msg.sender != pendingEcoptrollerImplementation || pendingEcoptrollerImplementation == address(0)) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.ACCEPT_PENDING_IMPLEMENTATION_ADDRESS_CHECK);
-        }
+     * @notice Called by the admin to update the esgtrollerImplementation of the delegator
+     * @param implementation_ The address of the new esgtrollerImplementation for delegation
+     */
+    function _setImplementation(address implementation_, bytes memory becomeImplementationData) public {
+        require(msg.sender == admin, "Unitroller::_setImplementation: admin only");
+        require(implementation_ != address(0), "Unitroller::_setImplementation: invalid implementation address");
 
-        // Save current values for inclusion in log
-        address oldImplementation = ecoptrollerImplementation;
-        address oldPendingImplementation = pendingEcoptrollerImplementation;
+        address oldImplementation = esgtrollerImplementation;
+        esgtrollerImplementation = implementation_;
 
-        ecoptrollerImplementation = pendingEcoptrollerImplementation;
+        delegateToImplementation(abi.encodeWithSignature("_becomeImplementation(bytes)", becomeImplementationData));
 
-        pendingEcoptrollerImplementation = address(0);
-
-        emit NewImplementation(oldImplementation, ecoptrollerImplementation);
-        emit NewPendingImplementation(oldPendingImplementation, pendingEcoptrollerImplementation);
-
-        return uint(Error.NO_ERROR);
+        emit NewImplementation(oldImplementation, esgtrollerImplementation);
     }
-
 
     /**
       * @notice Begins transfer of admin rights. The newPendingAdmin must call `_acceptAdmin` to finalize the transfer.
@@ -84,11 +41,9 @@ contract Unitroller is UnitrollerAdminStorage, EcoptrollerErrorReporter {
       * @param newPendingAdmin New pending admin.
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _setPendingAdmin(address newPendingAdmin) external returns (uint) {
+    function _setPendingAdmin(address newPendingAdmin) public {
         // Check caller = admin
-        if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.SET_PENDING_ADMIN_OWNER_CHECK);
-        }
+        require(msg.sender == admin, "Unitroller:_setPendingAdmin: admin only");
 
         // Save current value, if any, for inclusion in log
         address oldPendingAdmin = pendingAdmin;
@@ -98,8 +53,6 @@ contract Unitroller is UnitrollerAdminStorage, EcoptrollerErrorReporter {
 
         // Emit NewPendingAdmin(oldPendingAdmin, newPendingAdmin)
         emit NewPendingAdmin(oldPendingAdmin, newPendingAdmin);
-
-        return uint(Error.NO_ERROR);
     }
 
     /**
@@ -107,11 +60,9 @@ contract Unitroller is UnitrollerAdminStorage, EcoptrollerErrorReporter {
       * @dev Admin function for pending admin to accept role and update admin
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _acceptAdmin() external returns (uint) {
+    function _acceptAdmin() public {
         // Check caller is pendingAdmin and pendingAdmin ≠ address(0)
-        if (msg.sender != pendingAdmin || msg.sender == address(0)) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.ACCEPT_ADMIN_PENDING_ADMIN_CHECK);
-        }
+        require(msg.sender == pendingAdmin && msg.sender != address(0), "Unitroller:_acceptAdmin: pending admin only");
 
         // Save current values for inclusion in log
         address oldAdmin = admin;
@@ -125,38 +76,43 @@ contract Unitroller is UnitrollerAdminStorage, EcoptrollerErrorReporter {
 
         emit NewAdmin(oldAdmin, admin);
         emit NewPendingAdmin(oldPendingAdmin, pendingAdmin);
-
-        return uint(Error.NO_ERROR);
     }
+
+    /**
+     * @notice Internal method to delegate execution to another contract
+     * @dev It returns to the external caller whatever the implementation returns or forwards reverts
+     * @param callee The contract to delegatecall
+     * @param data The raw data to delegatecall
+     */
+    function delegateTo(address callee, bytes memory data) internal returns (bytes memory) {
+        (bool success, bytes memory returnData) = callee.delegatecall(data);
+        assembly {
+            if eq(success, 0) {
+                revert(add(returnData, 0x20), returndatasize)
+            }
+        }
+        return returnData;
+    }
+
+    /**
+     * @notice Delegates execution to the implementation contract
+     * @dev It returns to the external caller whatever the implementation returns or forwards reverts
+     * @param data The raw data to delegatecall
+     * @return The returned bytes from the delegatecall
+     */
+    function delegateToImplementation(bytes memory data) public returns (bytes memory) {
+        return delegateTo(esgtrollerImplementation, data);
+    }
+
 
     /**
      * @dev Delegates execution to an implementation contract.
      * It returns to the external caller whatever the implementation returns
      * or forwards reverts.
      */
-    fallback() external {
-    }
-    receive() payable external {
-       // delegate all other functions to current implementation
-        bool success = _mySubfuc();
-
-        assembly {
-              let free_mem_ptr := mload(0x40)
-              returndatacopy(free_mem_ptr, 0, returndatasize())
-
-              switch success
-              case 0 { revert(free_mem_ptr, returndatasize()) }
-              default { return(free_mem_ptr, returndatasize()) }
-        }
-    }
-    function _mySubfuc() private returns(bool) {
-          (bool success, ) = ecoptrollerImplementation.delegatecall(msg.data);
-          return success;
-    }
-    /**
     function () payable external {
         // delegate all other functions to current implementation
-        (bool success, ) = ecoptrollerImplementation.delegatecall(msg.data);
+        (bool success, ) = esgtrollerImplementation.delegatecall(msg.data);
 
         assembly {
               let free_mem_ptr := mload(0x40)
@@ -167,5 +123,4 @@ contract Unitroller is UnitrollerAdminStorage, EcoptrollerErrorReporter {
               default { return(free_mem_ptr, returndatasize) }
         }
     }
-    */
 }

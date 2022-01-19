@@ -1,8 +1,6 @@
-// SPDX-License-Identifier: MIT
+pragma solidity ^0.5.16;
 
-pragma solidity >=0.6.2;
-
-import "./EcoptrollerInterface.sol";
+import "./EsgtrollerInterface.sol";
 import "./ETokenInterfaces.sol";
 import "./ErrorReporter.sol";
 import "./Exponential.sol";
@@ -10,26 +8,26 @@ import "./EIP20Interface.sol";
 import "./InterestRateModel.sol";
 
 /**
- * @title ECOP's EToken Contract
+ * @title ESG's EToken Contract
  * @notice Abstract base for ETokens
- * @author ECOP
+ * @author ESG
  */
-abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
+contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
     /**
      * @notice Initialize the money market
-     * @param ecoptroller_ The address of the Ecoptroller
+     * @param esgtroller_ The address of the Esgtroller
      * @param interestRateModel_ The address of the interest rate model
      * @param initialExchangeRateMantissa_ The initial exchange rate, scaled by 1e18
      * @param name_ EIP-20 name of this token
      * @param symbol_ EIP-20 symbol of this token
      * @param decimals_ EIP-20 decimal precision of this token
      */
-    function initialize(EcoptrollerInterface ecoptroller_,
+    function initialize(EsgtrollerInterface esgtroller_,
                         InterestRateModel interestRateModel_,
                         uint initialExchangeRateMantissa_,
                         string memory name_,
                         string memory symbol_,
-                        uint8 decimals_) external {
+                        uint8 decimals_) public {
         require(msg.sender == admin, "only admin may initialize the market");
         require(accrualBlockNumber == 0 && borrowIndex == 0, "market may only be initialized once");
 
@@ -37,11 +35,11 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         initialExchangeRateMantissa = initialExchangeRateMantissa_;
         require(initialExchangeRateMantissa > 0, "initial exchange rate must be greater than zero.");
 
-        // Set the ecoptroller
-        uint err = _setEcoptroller(ecoptroller_);
-        require(err == uint(Error.NO_ERROR), "setting ecoptroller failed");
+        // Set the esgtroller
+        uint err = _setEsgtroller(esgtroller_);
+        require(err == uint(Error.NO_ERROR), "setting esgtroller failed");
 
-        // Initialize block number and borrow index (block number mocks depend on ecoptroller being set)
+        // Initialize block number and borrow index (block number mocks depend on esgtroller being set)
         accrualBlockNumber = getBlockNumber();
         borrowIndex = mantissaOne;
 
@@ -68,9 +66,9 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      */
     function transferTokens(address spender, address src, address dst, uint tokens) internal returns (uint) {
         /* Fail if transfer not allowed */
-        uint allowed = ecoptroller.transferAllowed(address(this), src, dst, tokens);
+        uint allowed = esgtroller.transferAllowed(address(this), src, dst, tokens);
         if (allowed != 0) {
-            return failOpaque(Error.ECOPTROLLER_REJECTION, FailureInfo.TRANSFER_ECOPTROLLER_REJECTION, allowed); 
+            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.TRANSFER_COMPTROLLER_REJECTION, allowed);
         }
 
         /* Do not allow self-transfers */
@@ -81,7 +79,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Get the allowance, infinite for the account owner */
         uint startingAllowance = 0;
         if (spender == src) {
-            startingAllowance = uint(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+            startingAllowance = uint(-1);
         } else {
             startingAllowance = transferAllowances[src][spender];
         }
@@ -89,7 +87,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Do the calculations, checking for {under,over}flow */
         MathError mathErr;
         uint allowanceNew;
-        uint srcTokensNew;
+        uint sreTokensNew;
         uint dstTokensNew;
 
         (mathErr, allowanceNew) = subUInt(startingAllowance, tokens);
@@ -97,7 +95,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
             return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ALLOWED);
         }
 
-        (mathErr, srcTokensNew) = subUInt(accountTokens[src], tokens);
+        (mathErr, sreTokensNew) = subUInt(accountTokens[src], tokens);
         if (mathErr != MathError.NO_ERROR) {
             return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ENOUGH);
         }
@@ -111,11 +109,11 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         // EFFECTS & INTERACTIONS
         // (No safe failures beyond this point)
 
-        accountTokens[src] = srcTokensNew;
+        accountTokens[src] = sreTokensNew;
         accountTokens[dst] = dstTokensNew;
 
         /* Eat some of the allowance (if necessary) */
-        if (startingAllowance != uint(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)) {
+        if (startingAllowance != uint(-1)) {
             transferAllowances[src][spender] = allowanceNew;
         }
 
@@ -123,7 +121,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         emit Transfer(src, dst, tokens);
 
         // unused function
-        // ecoptroller.transferVerify(address(this), src, dst, tokens);
+        // esgtroller.transferVerify(address(this), src, dst, tokens);
 
         return uint(Error.NO_ERROR);
     }
@@ -134,7 +132,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param amount The number of tokens to transfer
      * @return Whether or not the transfer succeeded
      */
-    function transfer(address dst, uint256 amount) external nonReentrant override returns (bool) {
+    function transfer(address dst, uint256 amount) external nonReentrant returns (bool) {
         return transferTokens(msg.sender, msg.sender, dst, amount) == uint(Error.NO_ERROR);
     }
 
@@ -145,7 +143,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param amount The number of tokens to transfer
      * @return Whether or not the transfer succeeded
      */
-    function transferFrom(address src, address dst, uint256 amount) external nonReentrant override returns (bool) {
+    function transferFrom(address src, address dst, uint256 amount) external nonReentrant returns (bool) {
         return transferTokens(msg.sender, src, dst, amount) == uint(Error.NO_ERROR);
     }
 
@@ -157,7 +155,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param amount The number of tokens that are approved (-1 means infinite)
      * @return Whether or not the approval succeeded
      */
-    function approve(address spender, uint256 amount) external override returns (bool) {
+    function approve(address spender, uint256 amount) external returns (bool) {
         address src = msg.sender;
         transferAllowances[src][spender] = amount;
         emit Approval(src, spender, amount);
@@ -170,7 +168,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param spender The address of the account which may transfer tokens
      * @return The number of tokens allowed to be spent (-1 means infinite)
      */
-    function allowance(address owner, address spender) external view override returns (uint256) {
+    function allowance(address owner, address spender) external view returns (uint256) {
         return transferAllowances[owner][spender];
     }
 
@@ -179,7 +177,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param owner The address of the account to query
      * @return The number of tokens owned by `owner`
      */
-    function balanceOf(address owner) external view override returns (uint256) {
+    function balanceOf(address owner) external view returns (uint256) {
         return accountTokens[owner];
     }
 
@@ -189,7 +187,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param owner The address of the account to query
      * @return The amount of underlying owned by `owner`
      */
-    function balanceOfUnderlying(address owner) external override returns (uint) {
+    function balanceOfUnderlying(address owner) external returns (uint) {
         Exp memory exchangeRate = Exp({mantissa: exchangeRateCurrent()});
         (MathError mErr, uint balance) = mulScalarTruncate(exchangeRate, accountTokens[owner]);
         require(mErr == MathError.NO_ERROR, "balance could not be calculated");
@@ -198,11 +196,11 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
 
     /**
      * @notice Get a snapshot of the account's balances, and the cached exchange rate
-     * @dev This is used by ecoptroller to more efficiently perform liquidity checks.
+     * @dev This is used by esgtroller to more efficiently perform liquidity checks.
      * @param account Address of the account to snapshot
      * @return (possible error, token balance, borrow balance, exchange rate mantissa)
      */
-    function getAccountSnapshot(address account) external view override returns (uint, uint, uint, uint) {
+    function getAccountSnapshot(address account) external view returns (uint, uint, uint, uint) {
         uint eTokenBalance = accountTokens[account];
         uint borrowBalance;
         uint exchangeRateMantissa;
@@ -234,7 +232,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @notice Returns the current per-block borrow interest rate for this eToken
      * @return The borrow interest rate per block, scaled by 1e18
      */
-    function borrowRatePerBlock() external override returns (uint) {
+    function borrowRatePerBlock() external view returns (uint) {
         return interestRateModel.getBorrowRate(getCashPrior(), totalBorrows, totalReserves);
     }
 
@@ -242,7 +240,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @notice Returns the current per-block supply interest rate for this eToken
      * @return The supply interest rate per block, scaled by 1e18
      */
-    function supplyRatePerBlock() external override returns (uint) {
+    function supplyRatePerBlock() external view returns (uint) {
         return interestRateModel.getSupplyRate(getCashPrior(), totalBorrows, totalReserves, reserveFactorMantissa);
     }
 
@@ -250,7 +248,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @notice Returns the current total borrows plus accrued interest
      * @return The total borrows with interest
      */
-    function totalBorrowsCurrent() external nonReentrant override returns (uint) {
+    function totalBorrowsCurrent() external nonReentrant returns (uint) {
         require(accrueInterest() == uint(Error.NO_ERROR), "accrue interest failed");
         return totalBorrows;
     }
@@ -260,7 +258,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param account The address whose balance should be calculated after updating borrowIndex
      * @return The calculated balance
      */
-    function borrowBalanceCurrent(address account) external nonReentrant override returns (uint) {
+    function borrowBalanceCurrent(address account) external nonReentrant returns (uint) {
         require(accrueInterest() == uint(Error.NO_ERROR), "accrue interest failed");
         return borrowBalanceStored(account);
     }
@@ -270,7 +268,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param account The address whose balance should be calculated
      * @return The calculated balance
      */
-    function borrowBalanceStored(address account) public view override returns (uint) {
+    function borrowBalanceStored(address account) public view returns (uint) {
         (MathError err, uint result) = borrowBalanceStoredInternal(account);
         require(err == MathError.NO_ERROR, "borrowBalanceStored: borrowBalanceStoredInternal failed");
         return result;
@@ -317,7 +315,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @notice Accrue interest then return the up-to-date exchange rate
      * @return Calculated exchange rate scaled by 1e18
      */
-    function exchangeRateCurrent() internal nonReentrant override returns (uint) {
+    function exchangeRateCurrent() public nonReentrant returns (uint) {
         require(accrueInterest() == uint(Error.NO_ERROR), "accrue interest failed");
         return exchangeRateStored();
     }
@@ -327,7 +325,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @dev This function does not accrue interest before calculating the exchange rate
      * @return Calculated exchange rate scaled by 1e18
      */
-    function exchangeRateStored() public view override returns (uint) {
+    function exchangeRateStored() public view returns (uint) {
         (MathError err, uint result) = exchangeRateStoredInternal();
         require(err == MathError.NO_ERROR, "exchangeRateStored: exchangeRateStoredInternal failed");
         return result;
@@ -374,7 +372,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @notice Get cash balance of this eToken in the underlying asset
      * @return The quantity of underlying asset owned by this contract
      */
-    function getCash() external view override returns (uint) {
+    function getCash() external view returns (uint) {
         return getCashPrior();
     }
 
@@ -383,7 +381,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @dev This calculates interest accrued from the last checkpointed block
      *   up to the current block and writes new checkpoint to storage.
      */
-    function accrueInterest() public override returns (uint) {
+    function accrueInterest() public returns (uint) {
         /* Remember the initial block number */
         uint currentBlockNumber = getBlockNumber();
         uint accrualBlockNumberPrior = accrualBlockNumber;
@@ -498,9 +496,9 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      */
     function mintFresh(address minter, uint mintAmount) internal returns (uint, uint) {
         /* Fail if mint not allowed */
-        uint allowed = ecoptroller.mintAllowed(address(this), minter, mintAmount);
+        uint allowed = esgtroller.mintAllowed(address(this), minter, mintAmount);
         if (allowed != 0) {
-            return (failOpaque(Error.ECOPTROLLER_REJECTION, FailureInfo.MINT_ECOPTROLLER_REJECTION, allowed), 0);
+            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.MINT_COMPTROLLER_REJECTION, allowed), 0);
         }
 
         /* Verify market's block number equals current block number */
@@ -558,7 +556,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
 
         /* We call the defense hook */
         // unused function
-        // ecoptroller.mintVerify(address(this), minter, vars.actualMintAmount, vars.mintTokens);
+        // esgtroller.mintVerify(address(this), minter, vars.actualMintAmount, vars.mintTokens);
 
         return (uint(Error.NO_ERROR), vars.actualMintAmount);
     }
@@ -576,7 +574,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
             return fail(Error(error), FailureInfo.REDEEM_ACCRUE_INTEREST_FAILED);
         }
         // redeemFresh emits redeem-specific logs on errors, so we don't need to
-        return redeemFresh(payable(msg.sender), redeemTokens, 0);
+        return redeemFresh(msg.sender, redeemTokens, 0);
     }
 
     /**
@@ -592,7 +590,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
             return fail(Error(error), FailureInfo.REDEEM_ACCRUE_INTEREST_FAILED);
         }
         // redeemFresh emits redeem-specific logs on errors, so we don't need to
-        return redeemFresh(payable(msg.sender), 0, redeemAmount);
+        return redeemFresh(msg.sender, 0, redeemAmount);
     }
 
     struct RedeemLocalVars {
@@ -653,9 +651,9 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         }
 
         /* Fail if redeem not allowed */
-        uint allowed = ecoptroller.redeemAllowed(address(this), redeemer, vars.redeemTokens);
+        uint allowed = esgtroller.redeemAllowed(address(this), redeemer, vars.redeemTokens);
         if (allowed != 0) {
-            return failOpaque(Error.ECOPTROLLER_REJECTION, FailureInfo.REDEEM_ECOPTROLLER_REJECTION, allowed);
+            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REDEEM_COMPTROLLER_REJECTION, allowed);
         }
 
         /* Verify market's block number equals current block number */
@@ -704,7 +702,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         emit Redeem(redeemer, vars.redeemAmount, vars.redeemTokens);
 
         /* We call the defense hook */
-        ecoptroller.redeemVerify(address(this), redeemer, vars.redeemAmount, vars.redeemTokens);
+        esgtroller.redeemVerify(address(this), redeemer, vars.redeemAmount, vars.redeemTokens);
 
         return uint(Error.NO_ERROR);
     }
@@ -721,7 +719,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
             return fail(Error(error), FailureInfo.BORROW_ACCRUE_INTEREST_FAILED);
         }
         // borrowFresh emits borrow-specific logs on errors, so we don't need to
-        return borrowFresh(payable(msg.sender), borrowAmount);
+        return borrowFresh(msg.sender, borrowAmount);
     }
 
     struct BorrowLocalVars {
@@ -738,9 +736,9 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
       */
     function borrowFresh(address payable borrower, uint borrowAmount) internal returns (uint) {
         /* Fail if borrow not allowed */
-        uint allowed = ecoptroller.borrowAllowed(address(this), borrower, borrowAmount);
+        uint allowed = esgtroller.borrowAllowed(address(this), borrower, borrowAmount);
         if (allowed != 0) {
-            return failOpaque(Error.ECOPTROLLER_REJECTION, FailureInfo.BORROW_ECOPTROLLER_REJECTION, allowed);
+            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.BORROW_COMPTROLLER_REJECTION, allowed);
         }
 
         /* Verify market's block number equals current block number */
@@ -797,7 +795,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
 
         /* We call the defense hook */
         // unused function
-        // ecoptroller.borrowVerify(address(this), borrower, borrowAmount);
+        // esgtroller.borrowVerify(address(this), borrower, borrowAmount);
 
         return uint(Error.NO_ERROR);
     }
@@ -853,9 +851,9 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      */
     function repayBorrowFresh(address payer, address borrower, uint repayAmount) internal returns (uint, uint) {
         /* Fail if repayBorrow not allowed */
-        uint allowed = ecoptroller.repayBorrowAllowed(address(this), payer, borrower, repayAmount);
+        uint allowed = esgtroller.repayBorrowAllowed(address(this), payer, borrower, repayAmount);
         if (allowed != 0) {
-            return (failOpaque(Error.ECOPTROLLER_REJECTION, FailureInfo.REPAY_BORROW_ECOPTROLLER_REJECTION, allowed), 0);
+            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REPAY_BORROW_COMPTROLLER_REJECTION, allowed), 0);
         }
 
         /* Verify market's block number equals current block number */
@@ -875,7 +873,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         }
 
         /* If repayAmount == -1, repayAmount = accountBorrows */
-        if (repayAmount == uint(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)) {
+        if (repayAmount == uint(-1)) {
             vars.repayAmount = vars.accountBorrows;
         } else {
             vars.repayAmount = repayAmount;
@@ -915,7 +913,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
 
         /* We call the defense hook */
         // unused function
-        // ecoptroller.repayBorrowVerify(address(this), payer, borrower, vars.actualRepayAmount, vars.borrowerIndex);
+        // esgtroller.repayBorrowVerify(address(this), payer, borrower, vars.actualRepayAmount, vars.borrowerIndex);
 
         return (uint(Error.NO_ERROR), vars.actualRepayAmount);
     }
@@ -956,9 +954,9 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      */
     function liquidateBorrowFresh(address liquidator, address borrower, uint repayAmount, ETokenInterface eTokenCollateral) internal returns (uint, uint) {
         /* Fail if liquidate not allowed */
-        uint allowed = ecoptroller.liquidateBorrowAllowed(address(this), address(eTokenCollateral), liquidator, borrower, repayAmount);
+        uint allowed = esgtroller.liquidateBorrowAllowed(address(this), address(eTokenCollateral), liquidator, borrower, repayAmount);
         if (allowed != 0) {
-            return (failOpaque(Error.ECOPTROLLER_REJECTION, FailureInfo.LIQUIDATE_ECOPTROLLER_REJECTION, allowed), 0);
+            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.LIQUIDATE_COMPTROLLER_REJECTION, allowed), 0);
         }
 
         /* Verify market's block number equals current block number */
@@ -982,7 +980,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         }
 
         /* Fail if repayAmount = -1 */
-        if (repayAmount == uint(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)) {
+        if (repayAmount == uint(-1)) {
             return (fail(Error.INVALID_CLOSE_AMOUNT_REQUESTED, FailureInfo.LIQUIDATE_CLOSE_AMOUNT_IS_UINT_MAX), 0);
         }
 
@@ -998,8 +996,8 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         // (No safe failures beyond this point)
 
         /* We calculate the number of collateral tokens that will be seized */
-        (uint amountSeizeError, uint seizeTokens) = ecoptroller.liquidateCalculateSeizeTokens(address(this), address(eTokenCollateral), actualRepayAmount);
-        require(amountSeizeError == uint(Error.NO_ERROR), "LIQUIDATE_ECOPTROLLER_CALCULATE_AMOUNT_SEIZE_FAILED");
+        (uint amountSeizeError, uint seizeTokens) = esgtroller.liquidateCalculateSeizeTokens(address(this), address(eTokenCollateral), actualRepayAmount);
+        require(amountSeizeError == uint(Error.NO_ERROR), "LIQUIDATE_COMPTROLLER_CALCULATE_AMOUNT_SEIZE_FAILED");
 
         /* Revert if borrower collateral token balance < seizeTokens */
         require(eTokenCollateral.balanceOf(borrower) >= seizeTokens, "LIQUIDATE_SEIZE_TOO_MUCH");
@@ -1020,7 +1018,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
 
         /* We call the defense hook */
         // unused function
-        // ecoptroller.liquidateBorrowVerify(address(this), address(eTokenCollateral), liquidator, borrower, actualRepayAmount, seizeTokens);
+        // esgtroller.liquidateBorrowVerify(address(this), address(eTokenCollateral), liquidator, borrower, actualRepayAmount, seizeTokens);
 
         return (uint(Error.NO_ERROR), actualRepayAmount);
     }
@@ -1034,7 +1032,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param seizeTokens The number of eTokens to seize
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function seize(address liquidator, address borrower, uint seizeTokens) external nonReentrant override returns (uint) {
+    function seize(address liquidator, address borrower, uint seizeTokens) external nonReentrant returns (uint) {
         return seizeInternal(msg.sender, liquidator, borrower, seizeTokens);
     }
 
@@ -1062,9 +1060,9 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      */
     function seizeInternal(address seizerToken, address liquidator, address borrower, uint seizeTokens) internal returns (uint) {
         /* Fail if seize not allowed */
-        uint allowed = ecoptroller.seizeAllowed(address(this), seizerToken, liquidator, borrower, seizeTokens);
+        uint allowed = esgtroller.seizeAllowed(address(this), seizerToken, liquidator, borrower, seizeTokens);
         if (allowed != 0) {
-            return failOpaque(Error.ECOPTROLLER_REJECTION, FailureInfo.LIQUIDATE_SEIZE_ECOPTROLLER_REJECTION, allowed);
+            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.LIQUIDATE_SEIZE_COMPTROLLER_REJECTION, allowed);
         }
 
         /* Fail if borrower = liquidator */
@@ -1117,7 +1115,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
 
         /* We call the defense hook */
         // unused function
-        // ecoptroller.seizeVerify(address(this), seizerToken, liquidator, borrower, seizeTokens);
+        // esgtroller.seizeVerify(address(this), seizerToken, liquidator, borrower, seizeTokens);
 
         return uint(Error.NO_ERROR);
     }
@@ -1131,7 +1129,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
       * @param newPendingAdmin New pending admin.
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _setPendingAdmin(address payable newPendingAdmin) external override returns (uint) {
+    function _setPendingAdmin(address payable newPendingAdmin) external returns (uint) {
         // Check caller = admin
         if (msg.sender != admin) {
             return fail(Error.UNAUTHORIZED, FailureInfo.SET_PENDING_ADMIN_OWNER_CHECK);
@@ -1154,9 +1152,9 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
       * @dev Admin function for pending admin to accept role and update admin
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _acceptAdmin() external override returns (uint) {
+    function _acceptAdmin() external returns (uint) {
         // Check caller is pendingAdmin and pendingAdmin ≠ address(0)
-        if (msg.sender != pendingAdmin || msg.sender == payable(0)) {
+        if (msg.sender != pendingAdmin || msg.sender == address(0)) {
             return fail(Error.UNAUTHORIZED, FailureInfo.ACCEPT_ADMIN_PENDING_ADMIN_CHECK);
         }
 
@@ -1168,7 +1166,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         admin = pendingAdmin;
 
         // Clear the pending value
-        pendingAdmin = payable(0);
+        pendingAdmin = address(0);
 
         emit NewAdmin(oldAdmin, admin);
         emit NewPendingAdmin(oldPendingAdmin, pendingAdmin);
@@ -1177,25 +1175,25 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
     }
 
     /**
-      * @notice Sets a new ecoptroller for the market
-      * @dev Admin function to set a new ecoptroller
+      * @notice Sets a new esgtroller for the market
+      * @dev Admin function to set a new esgtroller
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _setEcoptroller(EcoptrollerInterface newEcoptroller) internal override returns (uint) {
+    function _setEsgtroller(EsgtrollerInterface newEsgtroller) public returns (uint) {
         // Check caller is admin
         if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.SET_ECOPTROLLER_OWNER_CHECK);
+            return fail(Error.UNAUTHORIZED, FailureInfo.SET_COMPTROLLER_OWNER_CHECK);
         }
 
-        EcoptrollerInterface oldEcoptroller = ecoptroller;
-        // Ensure invoke ecoptroller.isEcoptroller() returns true
-        require(newEcoptroller.isEcoptroller(), "marker method returned false");
+        EsgtrollerInterface oldEsgtroller = esgtroller;
+        // Ensure invoke esgtroller.isEsgtroller() returns true
+        require(newEsgtroller.isEsgtroller(), "marker method returned false");
 
-        // Set market's ecoptroller to newEcoptroller
-        ecoptroller = newEcoptroller;
+        // Set market's esgtroller to newEsgtroller
+        esgtroller = newEsgtroller;
 
-        // Emit NewEcoptroller(oldEcoptroller, newEcoptroller)
-        emit NewEcoptroller(oldEcoptroller, newEcoptroller);
+        // Emit NewEsgtroller(oldEsgtroller, newEsgtroller)
+        emit NewEsgtroller(oldEsgtroller, newEsgtroller);
 
         return uint(Error.NO_ERROR);
     }
@@ -1205,7 +1203,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
       * @dev Admin function to accrue interest and set a new reserve factor
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _setReserveFactor(uint newReserveFactorMantissa) external nonReentrant override returns (uint) {
+    function _setReserveFactor(uint newReserveFactorMantissa) external nonReentrant returns (uint) {
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
             // accrueInterest emits logs on errors, but on top of that we want to log the fact that an attempted reserve factor change failed.
@@ -1312,7 +1310,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param reduceAmount Amount of reduction to reserves
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function _reduceReserves(uint reduceAmount) external nonReentrant override returns (uint) {
+    function _reduceReserves(uint reduceAmount) external nonReentrant returns (uint) {
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
             // accrueInterest emits logs on errors, but on top of that we want to log the fact that an attempted reduce reserves failed.
@@ -1377,7 +1375,7 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @param newInterestRateModel the new interest rate model to use
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function _setInterestRateModel(InterestRateModel newInterestRateModel) external override returns (uint) {
+    function _setInterestRateModel(InterestRateModel newInterestRateModel) public returns (uint) {
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
             // accrueInterest emits logs on errors, but on top of that we want to log the fact that an attempted change of interest rate model failed
@@ -1430,20 +1428,20 @@ abstract contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
      * @dev This excludes the value of the current message, if any
      * @return The quantity of underlying owned by this contract
      */
-    function getCashPrior() internal view virtual returns (uint);
+    function getCashPrior() internal view returns (uint);
 
     /**
      * @dev Performs a transfer in, reverting upon failure. Returns the amount actually transferred to the protocol, in case of a fee.
      *  This may revert due to insufficient balance or insufficient allowance.
      */
-    function doTransferIn(address from, uint amount) internal virtual returns (uint);
+    function doTransferIn(address from, uint amount) internal returns (uint);
 
     /**
      * @dev Performs a transfer out, ideally returning an explanatory error code upon failure tather than reverting.
      *  If caller has not called checked protocol's balance, may revert due to insufficient cash held in the contract.
      *  If caller has checked protocol's balance, and verified it is >= amount, this should not revert in normal conditions.
      */
-    function doTransferOut(address payable to, uint amount) internal virtual;
+    function doTransferOut(address payable to, uint amount) internal;
 
 
     /*** Reentrancy Guard ***/

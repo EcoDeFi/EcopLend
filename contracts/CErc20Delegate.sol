@@ -1,25 +1,23 @@
-// SPDX-License-Identifier: MIT
-
-pragma solidity >=0.6.2;
+pragma solidity ^0.5.16;
 
 import "./CErc20.sol";
 
 /**
- * @title ECOP's CErc20Delegate Contract
+ * @title ESG's CErc20Delegate Contract
  * @notice ETokens which wrap an EIP-20 underlying and are delegated to
- * @author ECOP
+ * @author ESG
  */
 contract CErc20Delegate is CErc20, CDelegateInterface {
     /**
      * @notice Construct an empty delegate
      */
-    constructor() {}
+    constructor() public {}
 
     /**
      * @notice Called by the delegator on a delegate to initialize it for duty
      * @param data The encoded bytes data for any initialization
      */
-    function _becomeImplementation(bytes memory data) external override{
+    function _becomeImplementation(bytes memory data) public {
         // Shh -- currently unused
         data;
 
@@ -34,7 +32,7 @@ contract CErc20Delegate is CErc20, CDelegateInterface {
     /**
      * @notice Called by the delegator on a delegate to forfeit its responsibility
      */
-    function _resignImplementation() external override{
+    function _resignImplementation() public {
         // Shh -- we don't ever want this hook to be marked pure
         if (false) {
             implementation = address(0);

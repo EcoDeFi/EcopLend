@@ -1,12 +1,10 @@
-// SPDX-License-Identifier: MIT
+pragma solidity ^0.5.16;
 
-pragma solidity >=0.6.2;
-
-contract EcoptrollerErrorReporter {
+contract EsgtrollerErrorReporter {
     enum Error {
         NO_ERROR,
         UNAUTHORIZED,
-        ECOPTROLLER_MISMATCH,
+        COMPTROLLER_MISMATCH,
         INSUFFICIENT_SHORTFALL,
         INSUFFICIENT_LIQUIDITY,
         INVALID_CLOSE_FACTOR,
@@ -51,13 +49,13 @@ contract EcoptrollerErrorReporter {
       * @dev `error` corresponds to enum Error; `info` corresponds to enum FailureInfo, and `detail` is an arbitrary
       * contract-specific code that enables us to report opaque error codes from upgradeable contracts.
       **/
-    event Failure1(uint error, uint info, uint detail);
+    event Failure(uint error, uint info, uint detail);
 
     /**
       * @dev use this when reporting a known error from the money market or a non-upgradeable collaborator
       */
     function fail(Error err, FailureInfo info) internal returns (uint) {
-        emit Failure1(uint(err), uint(info), 0);
+        emit Failure(uint(err), uint(info), 0);
 
         return uint(err);
     }
@@ -66,7 +64,7 @@ contract EcoptrollerErrorReporter {
       * @dev use this when reporting an opaque error from an upgradeable collaborator contract
       */
     function failOpaque(Error err, FailureInfo info, uint opaqueError) internal returns (uint) {
-        emit Failure1(uint(err), uint(info), opaqueError);
+        emit Failure(uint(err), uint(info), opaqueError);
 
         return uint(err);
     }
@@ -77,8 +75,8 @@ contract TokenErrorReporter {
         NO_ERROR,
         UNAUTHORIZED,
         BAD_INPUT,
-        ECOPTROLLER_REJECTION,
-        ECOPTROLLER_CALCULATION_ERROR,
+        COMPTROLLER_REJECTION,
+        COMPTROLLER_CALCULATION_ERROR,
         INTEREST_RATE_MODEL_ERROR,
         INVALID_ACCOUNT_PAIR,
         INVALID_CLOSE_AMOUNT_REQUESTED,
@@ -114,12 +112,12 @@ contract TokenErrorReporter {
         BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED,
         BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED,
         BORROW_MARKET_NOT_LISTED,
-        BORROW_ECOPTROLLER_REJECTION,
+        BORROW_COMPTROLLER_REJECTION,
         LIQUIDATE_ACCRUE_BORROW_INTEREST_FAILED,
         LIQUIDATE_ACCRUE_COLLATERAL_INTEREST_FAILED,
         LIQUIDATE_COLLATERAL_FRESHNESS_CHECK,
-        LIQUIDATE_ECOPTROLLER_REJECTION,
-        LIQUIDATE_ECOPTROLLER_CALCULATE_AMOUNT_SEIZE_FAILED,
+        LIQUIDATE_COMPTROLLER_REJECTION,
+        LIQUIDATE_COMPTROLLER_CALCULATE_AMOUNT_SEIZE_FAILED,
         LIQUIDATE_CLOSE_AMOUNT_IS_UINT_MAX,
         LIQUIDATE_CLOSE_AMOUNT_IS_ZERO,
         LIQUIDATE_FRESHNESS_CHECK,
@@ -127,11 +125,11 @@ contract TokenErrorReporter {
         LIQUIDATE_REPAY_BORROW_FRESH_FAILED,
         LIQUIDATE_SEIZE_BALANCE_INCREMENT_FAILED,
         LIQUIDATE_SEIZE_BALANCE_DECREMENT_FAILED,
-        LIQUIDATE_SEIZE_ECOPTROLLER_REJECTION,
+        LIQUIDATE_SEIZE_COMPTROLLER_REJECTION,
         LIQUIDATE_SEIZE_LIQUIDATOR_IS_BORROWER,
         LIQUIDATE_SEIZE_TOO_MUCH,
         MINT_ACCRUE_INTEREST_FAILED,
-        MINT_ECOPTROLLER_REJECTION,
+        MINT_COMPTROLLER_REJECTION,
         MINT_EXCHANGE_CALCULATION_FAILED,
         MINT_EXCHANGE_RATE_READ_FAILED,
         MINT_FRESHNESS_CHECK,
@@ -140,7 +138,7 @@ contract TokenErrorReporter {
         MINT_TRANSFER_IN_FAILED,
         MINT_TRANSFER_IN_NOT_POSSIBLE,
         REDEEM_ACCRUE_INTEREST_FAILED,
-        REDEEM_ECOPTROLLER_REJECTION,
+        REDEEM_COMPTROLLER_REJECTION,
         REDEEM_EXCHANGE_TOKENS_CALCULATION_FAILED,
         REDEEM_EXCHANGE_AMOUNT_CALCULATION_FAILED,
         REDEEM_EXCHANGE_RATE_READ_FAILED,
@@ -156,14 +154,14 @@ contract TokenErrorReporter {
         REPAY_BEHALF_ACCRUE_INTEREST_FAILED,
         REPAY_BORROW_ACCRUE_INTEREST_FAILED,
         REPAY_BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED,
-        REPAY_BORROW_ECOPTROLLER_REJECTION,
+        REPAY_BORROW_COMPTROLLER_REJECTION,
         REPAY_BORROW_FRESHNESS_CHECK,
         REPAY_BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED,
         REPAY_BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED,
         REPAY_BORROW_TRANSFER_IN_NOT_POSSIBLE,
         SET_COLLATERAL_FACTOR_OWNER_CHECK,
         SET_COLLATERAL_FACTOR_VALIDATION,
-        SET_ECOPTROLLER_OWNER_CHECK,
+        SET_COMPTROLLER_OWNER_CHECK,
         SET_INTEREST_RATE_MODEL_ACCRUE_INTEREST_FAILED,
         SET_INTEREST_RATE_MODEL_FRESH_CHECK,
         SET_INTEREST_RATE_MODEL_OWNER_CHECK,
@@ -174,7 +172,7 @@ contract TokenErrorReporter {
         SET_RESERVE_FACTOR_ADMIN_CHECK,
         SET_RESERVE_FACTOR_FRESH_CHECK,
         SET_RESERVE_FACTOR_BOUNDS_CHECK,
-        TRANSFER_ECOPTROLLER_REJECTION,
+        TRANSFER_COMPTROLLER_REJECTION,
         TRANSFER_NOT_ALLOWED,
         TRANSFER_NOT_ENOUGH,
         TRANSFER_TOO_MUCH,
@@ -183,17 +181,17 @@ contract TokenErrorReporter {
         ADD_RESERVES_TRANSFER_IN_NOT_POSSIBLE
     }
 
-     /**
+    /**
       * @dev `error` corresponds to enum Error; `info` corresponds to enum FailureInfo, and `detail` is an arbitrary
       * contract-specific code that enables us to report opaque error codes from upgradeable contracts.
       **/
-    event Failure2(uint error, uint info, uint detail);
+    event Failure(uint error, uint info, uint detail);
 
     /**
       * @dev use this when reporting a known error from the money market or a non-upgradeable collaborator
       */
     function fail(Error err, FailureInfo info) internal returns (uint) {
-        emit Failure2(uint(err), uint(info), 0);
+        emit Failure(uint(err), uint(info), 0);
 
         return uint(err);
     }
@@ -202,7 +200,7 @@ contract TokenErrorReporter {
       * @dev use this when reporting an opaque error from an upgradeable collaborator contract
       */
     function failOpaque(Error err, FailureInfo info, uint opaqueError) internal returns (uint) {
-        emit Failure2(uint(err), uint(info), opaqueError);
+        emit Failure(uint(err), uint(info), opaqueError);
 
         return uint(err);
     }
