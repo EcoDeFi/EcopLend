@@ -1,6 +1,4 @@
-// SPDX-License-Identifier: MIT
-
-pragma solidity >=0.6.2;
+pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
 
 import "./GovernorBravoInterfaces.sol";
@@ -8,16 +6,16 @@ import "./GovernorBravoInterfaces.sol";
 contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoEvents {
 
     /// @notice The name of this contract
-    string public constant name = "ECOP Governor Bravo";
+    string public constant name = "ESG Governor Bravo";
 
     /// @notice The minimum setable proposal threshold
-    uint public constant MIN_PROPOSAL_THRESHOLD = 500000e18; // 500,000 Ecop
+    uint public constant MIN_PROPOSAL_THRESHOLD = 300000e18; // 300,000 ESG
 
     /// @notice The maximum setable proposal threshold
-    uint public constant MAX_PROPOSAL_THRESHOLD = 100000e18; //100,000 Ecop
+    uint public constant MAX_PROPOSAL_THRESHOLD = 1000000e18; //1,000,000 ESG
 
     /// @notice The minimum setable voting period
-    uint public constant MIN_VOTING_PERIOD = 5760; // About 24 hours
+    uint public constant MIN_VOTING_PERIOD = 5760; // About 24 hours 
 
     /// @notice The max setable voting period
     uint public constant MAX_VOTING_PERIOD = 80640; // About 2 weeks
@@ -29,7 +27,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
     uint public constant MAX_VOTING_DELAY = 40320; // About 1 week
 
     /// @notice The number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed
-    uint public constant quorumVotes = 4000000e18; // 4,000,000 = 4% of Ecop
+    uint public constant quorumVotes = 400000e18; // 400,000 = 4% of ESG
 
     /// @notice The maximum number of actions that can be included in a proposal
     uint public constant proposalMaxOperations = 10; // 10 actions
@@ -43,22 +41,22 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
     /**
       * @notice Used to initialize the contract during delegator contructor
       * @param timelock_ The address of the Timelock
-      * @param ecop_ The address of the ECOP token
+      * @param esg_ The address of the COMP token
       * @param votingPeriod_ The initial voting period
       * @param votingDelay_ The initial voting delay
       * @param proposalThreshold_ The initial proposal threshold
       */
-    function initialize(address timelock_, address ecop_, uint votingPeriod_, uint votingDelay_, uint proposalThreshold_) external {
+    function initialize(address timelock_, address esg_, uint votingPeriod_, uint votingDelay_, uint proposalThreshold_) public {
         require(address(timelock) == address(0), "GovernorBravo::initialize: can only initialize once");
         require(msg.sender == admin, "GovernorBravo::initialize: admin only");
         require(timelock_ != address(0), "GovernorBravo::initialize: invalid timelock address");
-        require(ecop_ != address(0), "GovernorBravo::initialize: invalid ecop address");
+        require(esg_ != address(0), "GovernorBravo::initialize: invalid esg address");
         require(votingPeriod_ >= MIN_VOTING_PERIOD && votingPeriod_ <= MAX_VOTING_PERIOD, "GovernorBravo::initialize: invalid voting period");
         require(votingDelay_ >= MIN_VOTING_DELAY && votingDelay_ <= MAX_VOTING_DELAY, "GovernorBravo::initialize: invalid voting delay");
         require(proposalThreshold_ >= MIN_PROPOSAL_THRESHOLD && proposalThreshold_ <= MAX_PROPOSAL_THRESHOLD, "GovernorBravo::initialize: invalid proposal threshold");
 
         timelock = TimelockInterface(timelock_);
-        ecop = EcopInterface(ecop_);
+        esg = EsgInterface(esg_);
         votingPeriod = votingPeriod_;
         votingDelay = votingDelay_;
         proposalThreshold = proposalThreshold_;
@@ -73,10 +71,10 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
       * @param description String description of the proposal
       * @return Proposal id of new proposal
       */
-    function propose(address[] memory targets, uint[] memory values, string[] memory signatures, bytes[] memory calldatas, string memory description) external returns (uint) {
+    function propose(address[] memory targets, uint[] memory values, string[] memory signatures, bytes[] memory calldatas, string memory description) public returns (uint) {
         // Reject proposals before initiating as Governor
-        require(initialProposalId != 0, "GovernorBravo::propose: Governor Bravo not active");
-        require(ecop.getPriorVotes(msg.sender, sub256(block.number, 1)) > proposalThreshold, "GovernorBravo::propose: proposer votes below proposal threshold");
+        //require(initialProposalId != 0, "GovernorBravo::propose: Governor Bravo not active");
+        require(esg.getPriorVotes(msg.sender, sub256(block.number, 1)) > proposalThreshold, "GovernorBravo::propose: proposer votes below proposal threshold");
         require(targets.length == values.length && targets.length == signatures.length && targets.length == calldatas.length, "GovernorBravo::propose: proposal function information arity mismatch");
         require(targets.length != 0, "GovernorBravo::propose: must provide actions");
         require(targets.length <= proposalMaxOperations, "GovernorBravo::propose: too many actions");
@@ -92,24 +90,24 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
         uint endBlock = add256(startBlock, votingPeriod);
 
         proposalCount++;
-        
-        Proposal storage newProposal = proposals[proposalCount];
-        newProposal.id = proposalCount;
-        newProposal.proposer = msg.sender;
-        newProposal.eta = 0;
-        newProposal.targets = targets;
-        newProposal.values = values;
-        newProposal.signatures = signatures;
-        newProposal.calldatas = calldatas;
-        newProposal.startBlock = startBlock;
-        newProposal.endBlock = endBlock;
-        newProposal.forVotes = 0;
-        newProposal.againstVotes = 0;
-        newProposal.abstainVotes = 0;
-        newProposal.canceled = false;
-        newProposal.executed = false;
+        Proposal memory newProposal = Proposal({
+            id: proposalCount,
+            proposer: msg.sender,
+            eta: 0,
+            targets: targets,
+            values: values,
+            signatures: signatures,
+            calldatas: calldatas,
+            startBlock: startBlock,
+            endBlock: endBlock,
+            forVotes: 0,
+            againstVotes: 0,
+            abstainVotes: 0,
+            canceled: false,
+            executed: false
+        });
 
-       // proposals[newProposal.id] = newProposal;
+        proposals[newProposal.id] = newProposal;
         latestProposalIds[newProposal.proposer] = newProposal.id;
 
         emit ProposalCreated(newProposal.id, msg.sender, targets, values, signatures, calldatas, startBlock, endBlock, description);
@@ -145,7 +143,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
         Proposal storage proposal = proposals[proposalId];
         proposal.executed = true;
         for (uint i = 0; i < proposal.targets.length; i++) {
-            timelock.executeTransaction{value:proposal.values[i]}(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta);
+            timelock.executeTransaction.value(proposal.values[i])(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta);
         }
         emit ProposalExecuted(proposalId);
     }
@@ -158,7 +156,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
         require(state(proposalId) != ProposalState.Executed, "GovernorBravo::cancel: cannot cancel executed proposal");
 
         Proposal storage proposal = proposals[proposalId];
-        require(msg.sender == proposal.proposer || ecop.getPriorVotes(proposal.proposer, sub256(block.number, 1)) < proposalThreshold, "GovernorBravo::cancel: proposer above threshold");
+        require(msg.sender == admin || msg.sender == proposal.proposer || esg.getPriorVotes(proposal.proposer, sub256(block.number, 1)) < proposalThreshold, "GovernorBravo::cancel: proposer above threshold");
 
         proposal.canceled = true;
         for (uint i = 0; i < proposal.targets.length; i++) {
@@ -171,6 +169,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
     /**
       * @notice Gets actions of a proposal
       * @param proposalId the id of the proposal
+      * @return Targets, values, signatures, and calldatas of the proposal actions
       */
     function getActions(uint proposalId) external view returns (address[] memory targets, uint[] memory values, string[] memory signatures, bytes[] memory calldatas) {
         Proposal storage p = proposals[proposalId];
@@ -192,7 +191,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
       * @param proposalId The id of the proposal
       * @return Proposal state
       */
-    function state(uint proposalId) internal view returns (ProposalState) {
+    function state(uint proposalId) public view returns (ProposalState) {
         require(proposalCount >= proposalId && proposalId > initialProposalId, "GovernorBravo::state: invalid proposal id");
         Proposal storage proposal = proposals[proposalId];
         if (proposal.canceled) {
@@ -203,7 +202,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
             return ProposalState.Active;
         } else if (proposal.forVotes <= proposal.againstVotes || proposal.forVotes < quorumVotes) {
             return ProposalState.Defeated;
-        } else if (proposal.eta == 0) {
+        } else if (proposal.forVotes >= proposal.againstVotes && proposal.forVotes >= 500000e18 && proposal.eta == 0) {
             return ProposalState.Succeeded;
         } else if (proposal.executed) {
             return ProposalState.Executed;
@@ -259,7 +258,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
         Proposal storage proposal = proposals[proposalId];
         Receipt storage receipt = proposal.receipts[voter];
         require(receipt.hasVoted == false, "GovernorBravo::castVoteInternal: voter already voted");
-        uint96 votes = ecop.getPriorVotes(voter, proposal.startBlock);
+        uint96 votes = esg.getPriorVotes(voter, proposal.startBlock);
 
         if (support == 0) {
             proposal.againstVotes = add256(proposal.againstVotes, votes);
@@ -319,12 +318,11 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
     /**
       * @notice Initiate the GovernorBravo contract
       * @dev Admin only. Sets initial proposal id which initiates the contract, ensuring a continuous proposal id count
-      * @param governorAlpha The address for the Governor to continue the proposal id count from
       */
-    function _initiate(address governorAlpha) external {
+    function _initiate() external {
         require(msg.sender == admin, "GovernorBravo::_initiate: admin only");
         require(initialProposalId == 0, "GovernorBravo::_initiate: can only initiate once");
-        proposalCount = GovernorAlpha(governorAlpha).proposalCount();
+        proposalCount = 1;
         initialProposalId = proposalCount;
         timelock.acceptAdmin();
     }
@@ -354,7 +352,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
       */
     function _acceptAdmin() external {
         // Check caller is pendingAdmin and pendingAdmin ≠ address(0)
-        require(msg.sender == pendingAdmin && pendingAdmin != address(0), "GovernorBravo:_acceptAdmin: pending admin only");
+        require(msg.sender == pendingAdmin && msg.sender != address(0), "GovernorBravo:_acceptAdmin: pending admin only");
 
         // Save current values for inclusion in log
         address oldAdmin = admin;
@@ -381,7 +379,7 @@ contract GovernorBravoDelegate is GovernorBravoDelegateStorageV1, GovernorBravoE
         return a - b;
     }
 
-    function getChainIdInternal() internal view returns (uint) {
+    function getChainIdInternal() internal pure returns (uint) {
         uint chainId;
         assembly { chainId := chainid() }
         return chainId;
