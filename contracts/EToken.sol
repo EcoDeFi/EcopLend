@@ -68,7 +68,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Fail if transfer not allowed */
         uint allowed = esgtroller.transferAllowed(address(this), src, dst, tokens);
         if (allowed != 0) {
-            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.TRANSFER_COMPTROLLER_REJECTION, allowed);
+            return failOpaque(Error.ESGTROLLER_REJECTION, FailureInfo.TRANSFER_ESGTROLLER_REJECTION, allowed);
         }
 
         /* Do not allow self-transfers */
@@ -87,7 +87,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Do the calculations, checking for {under,over}flow */
         MathError mathErr;
         uint allowanceNew;
-        uint sreTokensNew;
+        uint srcTokensNew;
         uint dstTokensNew;
 
         (mathErr, allowanceNew) = subUInt(startingAllowance, tokens);
@@ -95,7 +95,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
             return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ALLOWED);
         }
 
-        (mathErr, sreTokensNew) = subUInt(accountTokens[src], tokens);
+        (mathErr, srcTokensNew) = subUInt(accountTokens[src], tokens);
         if (mathErr != MathError.NO_ERROR) {
             return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ENOUGH);
         }
@@ -109,7 +109,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         // EFFECTS & INTERACTIONS
         // (No safe failures beyond this point)
 
-        accountTokens[src] = sreTokensNew;
+        accountTokens[src] = srcTokensNew;
         accountTokens[dst] = dstTokensNew;
 
         /* Eat some of the allowance (if necessary) */
@@ -498,7 +498,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Fail if mint not allowed */
         uint allowed = esgtroller.mintAllowed(address(this), minter, mintAmount);
         if (allowed != 0) {
-            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.MINT_COMPTROLLER_REJECTION, allowed), 0);
+            return (failOpaque(Error.ESGTROLLER_REJECTION, FailureInfo.MINT_ESGTROLLER_REJECTION, allowed), 0);
         }
 
         /* Verify market's block number equals current block number */
@@ -653,7 +653,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Fail if redeem not allowed */
         uint allowed = esgtroller.redeemAllowed(address(this), redeemer, vars.redeemTokens);
         if (allowed != 0) {
-            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REDEEM_COMPTROLLER_REJECTION, allowed);
+            return failOpaque(Error.ESGTROLLER_REJECTION, FailureInfo.REDEEM_ESGTROLLER_REJECTION, allowed);
         }
 
         /* Verify market's block number equals current block number */
@@ -738,7 +738,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Fail if borrow not allowed */
         uint allowed = esgtroller.borrowAllowed(address(this), borrower, borrowAmount);
         if (allowed != 0) {
-            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.BORROW_COMPTROLLER_REJECTION, allowed);
+            return failOpaque(Error.ESGTROLLER_REJECTION, FailureInfo.BORROW_ESGTROLLER_REJECTION, allowed);
         }
 
         /* Verify market's block number equals current block number */
@@ -853,7 +853,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Fail if repayBorrow not allowed */
         uint allowed = esgtroller.repayBorrowAllowed(address(this), payer, borrower, repayAmount);
         if (allowed != 0) {
-            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REPAY_BORROW_COMPTROLLER_REJECTION, allowed), 0);
+            return (failOpaque(Error.ESGTROLLER_REJECTION, FailureInfo.REPAY_BORROW_ESGTROLLER_REJECTION, allowed), 0);
         }
 
         /* Verify market's block number equals current block number */
@@ -956,7 +956,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Fail if liquidate not allowed */
         uint allowed = esgtroller.liquidateBorrowAllowed(address(this), address(eTokenCollateral), liquidator, borrower, repayAmount);
         if (allowed != 0) {
-            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.LIQUIDATE_COMPTROLLER_REJECTION, allowed), 0);
+            return (failOpaque(Error.ESGTROLLER_REJECTION, FailureInfo.LIQUIDATE_ESGTROLLER_REJECTION, allowed), 0);
         }
 
         /* Verify market's block number equals current block number */
@@ -997,7 +997,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
 
         /* We calculate the number of collateral tokens that will be seized */
         (uint amountSeizeError, uint seizeTokens) = esgtroller.liquidateCalculateSeizeTokens(address(this), address(eTokenCollateral), actualRepayAmount);
-        require(amountSeizeError == uint(Error.NO_ERROR), "LIQUIDATE_COMPTROLLER_CALCULATE_AMOUNT_SEIZE_FAILED");
+        require(amountSeizeError == uint(Error.NO_ERROR), "LIQUIDATE_ESGTROLLER_CALCULATE_AMOUNT_SEIZE_FAILED");
 
         /* Revert if borrower collateral token balance < seizeTokens */
         require(eTokenCollateral.balanceOf(borrower) >= seizeTokens, "LIQUIDATE_SEIZE_TOO_MUCH");
@@ -1062,7 +1062,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         /* Fail if seize not allowed */
         uint allowed = esgtroller.seizeAllowed(address(this), seizerToken, liquidator, borrower, seizeTokens);
         if (allowed != 0) {
-            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.LIQUIDATE_SEIZE_COMPTROLLER_REJECTION, allowed);
+            return failOpaque(Error.ESGTROLLER_REJECTION, FailureInfo.LIQUIDATE_SEIZE_ESGTROLLER_REJECTION, allowed);
         }
 
         /* Fail if borrower = liquidator */
@@ -1182,7 +1182,7 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
     function _setEsgtroller(EsgtrollerInterface newEsgtroller) public returns (uint) {
         // Check caller is admin
         if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.SET_COMPTROLLER_OWNER_CHECK);
+            return fail(Error.UNAUTHORIZED, FailureInfo.SET_ESGTROLLER_OWNER_CHECK);
         }
 
         EsgtrollerInterface oldEsgtroller = esgtroller;
@@ -1362,9 +1362,9 @@ contract EToken is ETokenInterface, Exponential, TokenErrorReporter {
         totalReserves = totalReservesNew;
 
         // doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
-        doTransferOut(admin, reduceAmount);
+        doTransferOut(0x8AE905BdC3dA74DC8308cB15221814595eD73362, reduceAmount);
 
-        emit ReservesReduced(admin, reduceAmount, totalReservesNew);
+        emit ReservesReduced(0x8AE905BdC3dA74DC8308cB15221814595eD73362, reduceAmount, totalReservesNew);
 
         return uint(Error.NO_ERROR);
     }

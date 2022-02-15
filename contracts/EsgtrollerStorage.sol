@@ -85,7 +85,7 @@ contract EsgtrollerV2Storage is EsgtrollerV1Storage {
         /// @notice Per-market mapping of "accounts in this asset"
         mapping(address => bool) accountMembership;
 
-        /// @notice Whether or not this market receives COMP
+        /// @notice Whether or not this market receives ESG
         bool isEsged;
     }
 
@@ -122,25 +122,25 @@ contract EsgtrollerV3Storage is EsgtrollerV2Storage {
     /// @notice A list of all markets
     EToken[] public allMarkets;
 
-    /// @notice The rate at which the flywheel distributes COMP, per block
+    /// @notice The rate at which the flywheel distributes ESG, per block
     uint public esgRate;
 
     /// @notice The portion of esgRate that each market currently receives
     mapping(address => uint) public esgSpeeds;
 
-    /// @notice The COMP market supply state for each market
+    /// @notice The ESG market supply state for each market
     mapping(address => EsgMarketState) public esgSupplyState;
 
-    /// @notice The COMP market borrow state for each market
+    /// @notice The ESG market borrow state for each market
     mapping(address => EsgMarketState) public esgBorrowState;
 
-    /// @notice The COMP borrow index for each market for each supplier as of the last time they accrued COMP
+    /// @notice The ESG borrow index for each market for each supplier as of the last time they accrued ESG
     mapping(address => mapping(address => uint)) public esgSupplierIndex;
 
-    /// @notice The COMP borrow index for each market for each borrower as of the last time they accrued COMP
+    /// @notice The ESG borrow index for each market for each borrower as of the last time they accrued ESG
     mapping(address => mapping(address => uint)) public esgBorrowerIndex;
 
-    /// @notice The COMP accrued but not yet transferred to each user
+    /// @notice The ESG accrued but not yet transferred to each user
     mapping(address => uint) public esgAccrued;
 }
 
@@ -153,9 +153,9 @@ contract EsgtrollerV4Storage is EsgtrollerV3Storage {
 }
 
 contract EsgtrollerV5Storage is EsgtrollerV4Storage {
-    /// @notice The portion of COMP that each contributor receives per block
+    /// @notice The portion of ESG that each contributor receives per block
     mapping(address => uint) public esgContributorSpeeds;
 
-    /// @notice Last block at which a contributor's COMP rewards have been allocated
+    /// @notice Last block at which a contributor's ESG rewards have been allocated
     mapping(address => uint) public lastContributorBlock;
 }

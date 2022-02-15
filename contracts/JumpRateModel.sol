@@ -2,12 +2,13 @@ pragma solidity ^0.5.16;
 
 import "./InterestRateModel.sol";
 import "./SafeMath.sol";
+import "./owned.sol";
 
 /**
   * @title ESG's JumpRateModel Contract
   * @author ESG
   */
-contract JumpRateModel is InterestRateModel {
+contract JumpRateModel is InterestRateModel, owned {
     using SafeMath for uint;
 
     event NewInterestParams(uint baseRatePerBlock, uint multiplierPerBlock, uint jumpMultiplierPerBlock, uint kink);
@@ -15,7 +16,7 @@ contract JumpRateModel is InterestRateModel {
     /**
      * @notice The address of the owner, i.e. the Timelock contract, which can update parameters directly
      */
-    address public owner;
+    //address public owner;
 
     /**
      * @notice The approximate number of blocks per year that is assumed by the interest rate model

@@ -125,7 +125,7 @@ contract CErc20 is EToken, CErc20Interface {
 
     /**
      * @notice The sender adds to reserves.
-     * @param addAmount The amount fo underlying token to add as reserves
+     * @param addAmount The amount of underlying token to add as reserves
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
     function _addReserves(uint addAmount) external returns (uint) {
@@ -211,7 +211,7 @@ contract CErc20 is EToken, CErc20Interface {
     }
 
     /**
-    * @notice Admin call to delegate the votes of the COMP-like underlying
+    * @notice Admin call to delegate the votes of the ESG-like underlying
     * @param esgLikeDelegatee The address to delegate votes to
     * @dev ETokens whose underlying are not EsgLike should revert here
     */

@@ -183,4 +183,39 @@ library SafeMath {
         require(b != 0, errorMessage);
         return a % b;
     }
+
+    /**
+   * @dev gives square root of given x.
+   */
+  function sqrt(uint256 x) internal pure returns(uint256 y) {
+        uint256 z = ((add(x, 1)) / 2);
+        y = x;
+        while (z < y) {
+            y = z;
+            z = ((add((x / z), z)) / 2);
+        }
+  }
+
+  /**
+   * @dev gives square. multiplies x by x
+   */
+  function sq(uint256 x) internal pure returns(uint256) {
+       return (mul(x, x));
+  }
+
+  /**
+   * @dev x to the power of y
+   */
+  function pwr(uint256 x, uint256 y) internal pure returns(uint256) {
+    if (x == 0)
+      return (0);
+    else if (y == 0)
+      return (1);
+    else {
+      uint256 z = x;
+      for (uint256 i = 1; i < y; i++)
+        z = mul(z, x);
+      return (z);
+    }
+  }
 }

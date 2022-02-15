@@ -42,16 +42,16 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     /// @notice Emitted when an action is paused on a market
     event ActionPaused(EToken eToken, string action, bool pauseState);
 
-    /// @notice Emitted when a new COMP speed is calculated for a market
+    /// @notice Emitted when a new ESG speed is calculated for a market
     event EsgSpeedUpdated(EToken indexed eToken, uint newSpeed);
 
-    /// @notice Emitted when a new COMP speed is set for a contributor
+    /// @notice Emitted when a new ESG speed is set for a contributor
     event ContributorEsgSpeedUpdated(address indexed contributor, uint newSpeed);
 
-    /// @notice Emitted when COMP is distributed to a supplier
+    /// @notice Emitted when ESG is distributed to a supplier
     event DistributedSupplierEsg(EToken indexed eToken, address indexed supplier, uint esgDelta, uint esgSupplyIndex);
 
-    /// @notice Emitted when COMP is distributed to a borrower
+    /// @notice Emitted when ESG is distributed to a borrower
     event DistributedBorrowerEsg(EToken indexed eToken, address indexed borrower, uint esgDelta, uint esgBorrowIndex);
 
     /// @notice Emitted when borrow cap for a eToken is changed
@@ -60,7 +60,7 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     /// @notice Emitted when borrow cap guardian is changed
     event NewBorrowCapGuardian(address oldBorrowCapGuardian, address newBorrowCapGuardian);
 
-    /// @notice Emitted when COMP is granted by admin
+    /// @notice Emitted when ESG is granted by admin
     event EsgGranted(address recipient, uint amount);
 
     /// @notice Emitted when pendingAdmin is changed
@@ -69,7 +69,7 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     /// @notice Emitted when pendingAdmin is accepted, which means admin is updated
     event NewAdmin(address oldAdmin, address newAdmin);
 
-    /// @notice The initial COMP index for a market
+    /// @notice The initial ESG index for a market
     uint224 public constant esgInitialIndex = 1e36;
 
     // closeFactorMantissa must be strictly greater than this value
@@ -90,6 +90,7 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
      * @param esg_ The address of the ESG
      */
     function initialize(address esg_) public {
+        require(msg.sender == admin, "only admin can initialize");
         require(esg_ != address(0), "initialize: invalid esg address");
         esg = esg_;
     }
@@ -582,7 +583,7 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
         }
 
         if (EToken(eTokenCollateral).esgtroller() != EToken(eTokenBorrowed).esgtroller()) {
-            return uint(Error.COMPTROLLER_MISMATCH);
+            return uint(Error.ESGTROLLER_MISMATCH);
         }
 
         // Keep the flywheel moving
@@ -1074,11 +1075,6 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
         emit ActionPaused("Seize", state);
         return state;
     }
-/**
-    function _become(Unitroller unitroller) public {
-        require(msg.sender == unitroller.admin(), "only unitroller admin can change brains");
-        require(unitroller._acceptImplementation() == 0, "change not authorized");
-    }*/
 
     /**
      * @notice Checks caller is admin, or this contract is becoming the new implementation
@@ -1090,19 +1086,19 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     /*** ESG Distribution ***/
 
     /**
-     * @notice Set COMP speed for a single market
-     * @param eToken The market whose COMP speed to update
-     * @param esgSpeed New COMP speed for market
+     * @notice Set ESG speed for a single market
+     * @param eToken The market whose ESG speed to update
+     * @param esgSpeed New ESG speed for market
      */
     function setEsgSpeedInternal(EToken eToken, uint esgSpeed) internal {
         uint currentEsgSpeed = esgSpeeds[address(eToken)];
         if (currentEsgSpeed != 0) {
-            // note that COMP speed could be set to 0 to halt liquidity rewards for a market
+            // note that ESG speed could be set to 0 to halt liquidity rewards for a market
             Exp memory borrowIndex = Exp({mantissa: eToken.borrowIndex()});
             updateEsgSupplyIndex(address(eToken));
             updateEsgBorrowIndex(address(eToken), borrowIndex);
         } else if (esgSpeed != 0) {
-            // Add the COMP market
+            // Add the ESG market
             Market storage market = markets[address(eToken)];
             require(market.isListed == true, "esg market is not listed");
 
@@ -1128,7 +1124,7 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     }
 
     /**
-     * @notice Accrue COMP to the market by updating the supply index
+     * @notice Accrue ESG to the market by updating the supply index
      * @param eToken The market whose supply index to update
      */
     function updateEsgSupplyIndex(address eToken) internal {
@@ -1151,7 +1147,7 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     }
 
     /**
-     * @notice Accrue COMP to the market by updating the borrow index
+     * @notice Accrue ESG to the market by updating the borrow index
      * @param eToken The market whose borrow index to update
      */
     function updateEsgBorrowIndex(address eToken, Exp memory marketBorrowIndex) internal {
@@ -1174,9 +1170,9 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     }
 
     /**
-     * @notice Calculate COMP accrued by a supplier and possibly transfer it to them
+     * @notice Calculate ESG accrued by a supplier and possibly transfer it to them
      * @param eToken The market in which the supplier is interacting
-     * @param supplier The address of the supplier to distribute COMP to
+     * @param supplier The address of the supplier to distribute ESG to
      */
     function distributeSupplierEsg(address eToken, address supplier) internal {
         EsgMarketState storage supplyState = esgSupplyState[eToken];
@@ -1197,10 +1193,10 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     }
 
     /**
-     * @notice Calculate COMP accrued by a borrower and possibly transfer it to them
+     * @notice Calculate ESG accrued by a borrower and possibly transfer it to them
      * @dev Borrowers will not begin to accrue until after the first interaction with the protocol.
      * @param eToken The market in which the borrower is interacting
-     * @param borrower The address of the borrower to distribute COMP to
+     * @param borrower The address of the borrower to distribute ESG to
      */
     function distributeBorrowerEsg(address eToken, address borrower, Exp memory marketBorrowIndex) internal {
         EsgMarketState storage borrowState = esgBorrowState[eToken];
@@ -1219,7 +1215,7 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     }
 
     /**
-     * @notice Calculate additional accrued COMP for a contributor since last accrual
+     * @notice Calculate additional accrued ESG for a contributor since last accrual
      * @param contributor The address to calculate contributor rewards for
      */
     function updateContributorRewards(address contributor) public {
@@ -1237,7 +1233,7 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
 
     /**
      * @notice Claim all the ESG accrued by holder in all markets
-     * @param holder The address to claim COMP for
+     * @param holder The address to claim ESG for
      */
     function claimEsg(address holder) public {
         return claimEsg(holder, allMarkets);
@@ -1245,8 +1241,8 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
 
     /**
      * @notice Claim all the ESG accrued by holder in the specified markets
-     * @param holder The address to claim COMP for
-     * @param eTokens The list of markets to claim COMP in
+     * @param holder The address to claim ESG for
+     * @param eTokens The list of markets to claim ESG in
      */
     function claimEsg(address holder, EToken[] memory eTokens) public {
         address[] memory holders = new address[](1);
@@ -1256,10 +1252,10 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
 
     /**
      * @notice Claim all ESG accrued by the holders
-     * @param holders The addresses to claim COMP for
-     * @param eTokens The list of markets to claim COMP in
-     * @param borrowers Whether or not to claim COMP earned by borrowing
-     * @param suppliers Whether or not to claim COMP earned by supplying
+     * @param holders The addresses to claim ESG for
+     * @param eTokens The list of markets to claim ESG in
+     * @param borrowers Whether or not to claim ESG earned by borrowing
+     * @param suppliers Whether or not to claim ESG earned by supplying
      */
     function claimEsg(address[] memory holders, EToken[] memory eTokens, bool borrowers, bool suppliers) public {
         for (uint i = 0; i < eTokens.length; i++) {
@@ -1285,11 +1281,11 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     }
 
     /**
-     * @notice Transfer COMP to the user
-     * @dev Note: If there is not enough COMP, we do not perform the transfer all.
-     * @param user The address of the user to transfer COMP to
-     * @param amount The amount of COMP to (possibly) transfer
-     * @return The amount of COMP which was NOT transferred to the user
+     * @notice Transfer ESG to the user
+     * @dev Note: If there is not enough ESG, we do not perform the transfer all.
+     * @param user The address of the user to transfer ESG to
+     * @param amount The amount of ESG to (possibly) transfer
+     * @return The amount of ESG which was NOT transferred to the user
      */
     function grantEsgInternal(address user, uint amount) internal returns (uint) {
         ESG esg = ESG(getEsgAddress());
@@ -1304,10 +1300,10 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     /*** ESG Distribution Admin ***/
 
     /**
-     * @notice Transfer COMP to the recipient
-     * @dev Note: If there is not enough COMP, we do not perform the transfer all.
-     * @param recipient The address of the recipient to transfer COMP to
-     * @param amount The amount of COMP to (possibly) transfer
+     * @notice Transfer ESG to the recipient
+     * @dev Note: If there is not enough ESG, we do not perform the transfer all.
+     * @param recipient The address of the recipient to transfer ESG to
+     * @param amount The amount of ESG to (possibly) transfer
      */
     function _grantEsg(address recipient, uint amount) public {
         require(adminOrInitializing(), "only admin can grant ESG");
@@ -1317,9 +1313,9 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     }
 
     /**
-     * @notice Set COMP speed for a single market
-     * @param eToken The market whose COMP speed to update
-     * @param esgSpeed New COMP speed for market
+     * @notice Set ESG speed for a single market
+     * @param eToken The market whose ESG speed to update
+     * @param esgSpeed New ESG speed for market
      */
     function _setEsgSpeed(EToken eToken, uint esgSpeed) public {
         require(adminOrInitializing(), "only admin can set ESG speed");
@@ -1327,14 +1323,14 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     }
 
     /**
-     * @notice Set COMP speed for a single contributor
-     * @param contributor The contributor whose COMP speed to update
-     * @param esgSpeed New COMP speed for contributor
+     * @notice Set ESG speed for a single contributor
+     * @param contributor The contributor whose ESG speed to update
+     * @param esgSpeed New ESG speed for contributor
      */
     function _setContributorEsgSpeed(address contributor, uint esgSpeed) public {
         require(adminOrInitializing(), "only admin can set ESG speed");
 
-        // note that COMP speed could be set to 0 to halt liquidity rewards for a contributor
+        // note that ESG speed could be set to 0 to halt liquidity rewards for a contributor
         updateContributorRewards(contributor);
         if (esgSpeed == 0) {
             // release storage
@@ -1417,10 +1413,10 @@ contract Esgtroller is EsgtrollerV5Storage, EsgtrollerInterface, EsgtrollerError
     }
 
     /**
-     * @notice Return the address of the COMP token
-     * @return The address of COMP
+     * @notice Return the address of the ESG token
+     * @return The address of ESG
      */
-    function getEsgAddress() public pure returns (address) {
-        return 0x0985205D53D575CB07Dd4Fba216034dc614eab55;
+    function getEsgAddress() public view returns (address) {
+        return address(esg);
     }
 }
